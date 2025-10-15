@@ -1,5 +1,9 @@
 # nf-core/swgsrelate: Citations
 
+## [Method](https://doi.org/10.1534/genetics.116.187492)
+
+> Snyder-Mackler N, Majoros WH, Yuan ML, Shaver AO, Gordon JB, Kopp GH, Schlebusch SA, Wall JD, Alberts SC, Mukherjee S, Zhou X, and Tung J. Efficient genome-wide sequencing and low-coverage pedigree analysis from noninvasively collected samples. Genetics. 2016 June; 203(2):699-714. doi: 10.1534/genetics.116.187492
+
 ## [nf-core](https://pubmed.ncbi.nlm.nih.gov/32055031/)
 
 > Ewels PA, Peltzer A, Fillinger S, Patel H, Alneberg J, Wilm A, Garcia MU, Di Tommaso P, Nahnsen S. The nf-core framework for community-curated bioinformatics pipelines. Nat Biotechnol. 2020 Mar;38(3):276-278. doi: 10.1038/s41587-020-0439-x. PubMed PMID: 32055031.
