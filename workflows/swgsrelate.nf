@@ -10,6 +10,7 @@ include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pi
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
+include { PREPROCESS             } from '../subworkflows/local/preprocess'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -22,16 +23,15 @@ workflow SWGSRELATE {
     ch_samplesheet // channel: samplesheet read in from --input
     main:
 
+    // Channel for collecting software versions
     ch_versions = Channel.empty()
+
+    // Channel for collecting MultiQC files
     ch_multiqc_files = Channel.empty()
-    //
-    // MODULE: Run FastQC
-    //
-    FASTQC (
-        ch_samplesheet
-    )
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
-    ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+
+    PREPROCESS(samplesheet)
+    ch_versions = ch_versions.mix(PREPROCESS.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(PREPROCESS.out.qc_reports.map { it[2] })
 
     //
     // Collate and save software versions
@@ -86,7 +86,7 @@ workflow SWGSRELATE {
     )
 
     emit:multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
-    versions       = ch_versions                 // channel: [ path(versions.yml) ]
+    versions            = ch_versions                 // channel: [ path(versions.yml) ]
 
 }
 
