@@ -26,7 +26,15 @@
                 "exists": true,
                 "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
                 "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
-            }
+            },
+            "RGID": {
+                "type": ["string", "integer"],
+                "description": "Read group ID (string or integer)"
+            },
+            "RGLB": { "type": "string", "description": "Read group library" },
+            "RGPL": { "type": "string", "description": "Platform (e.g. ILLUMINA)" },
+            "RGPU": { "type": "string", "description": "Platform unit" },
+            "RGSM": { "type": "string", "description": "Sample name for read group" }
         },
         "required": ["sample", "fastq_1"]
     }
