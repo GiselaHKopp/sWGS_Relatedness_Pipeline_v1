@@ -3,12 +3,12 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { BWA_MEM                      } from '../../../modules/nf-core/bwa/mem'
-include { FASTQC                       } from '../../../modules/nf-core/fastqc'
+include { BWAMEM2_INDEX                } from '../../../modules/nf-core/bwamem2/index'
+include { BWAMEM2_MEM                  } from '../../../modules/nf-core/bwamem2/mem'
+include { FASTP                        } from '../../../modules/nf-core/fastp'
 include { GATK4_ADDORREPLACEREADGROUPS } from '../../../modules/nf-core/gatk4/addorreplacereadgroups'
-include { PICARD_MERGESAMFILES         } from '../../../modules/nf-core/picard/mergesamfiles'
-include { SAMTOOLS_SORT                } from '../../../modules/nf-core/samtools/sort'
-include { TRIMMOMATIC                  } from '../../../modules/nf-core/trimmomatic'
+include { SAMTOOLS_FAIDX               } from '../../../modules/nf-core/samtools/faidx'
+include { SPRING_DECOMPRESS            } from '../../../modules/nf-core/spring/decompress'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -17,70 +17,55 @@ include { TRIMMOMATIC                  } from '../../../modules/nf-core/trimmoma
 */
 workflow PREPROCESS {
     take:
-        samplesheet
+    samplesheet
+    reference_fasta
 
     main:
-    // Collect software versions
+    // Collect software versions and QC reports
     ch_versions = Channel.empty()
+    qc_reports = Channel.empty()
 
-    // Parse TSV and emit tuple(pair_id, path R1, path R2, read group info)
-    parsed = samplesheet.splitCsv(header: true, sep: '\t')
-        .map { row ->
-            def rg = "--RGID ${row.RGID} --RGLB ${row.RGLB} --RGPL ${row.RGPL} --RGPU ${row.RGPU} --RGSM ${row.RGSM}"
-            tuple(row.RGSM, file(row.file_name_one), file(row.file_name_two), rg)
-        }
+    // Split by file type (spring vs fastq)
+    samplesheet.branch {
+        spring: it[1].every { f -> f.getName().endsWith('.spring') }
+        fastq : it[1].every { f -> f.getName().endsWith('.fastq') || f.getName().endsWith('.fastq.gz') || f.getName().endsWith('.fq.gz') }
+    }.set{ input_branches }
 
-    // FastQC before trimming
-    parsed.map { id, r1, r2, rg -> tuple(id+"_1", r1) }
-          .concat(parsed.map { id, r1, r2, rg -> tuple(id+"_2", r2) })
-          .set { raw_fastq }
+    // Decompress SPRING → FASTQ pairs
+    spring_pairs = SPRING_DECOMPRESS(input_branches.spring, false)
+    ch_versions = ch_versions.mix(spring_pairs.versions)
 
-    FASTQC(raw_fastq)
-    FASTQC_RAW = FASTQC.out
-    ch_versions = ch_versions.mix(FASTQC_RAW.versions.first())
+    // Merge with normal FASTQs into one unified channel
+    merged_fastqs = input_branches.fastq.mix(spring_pairs.fastq)
 
-    // Trimming
-    parsed.map { id, r1, r2, rg -> tuple(id, [r1, r2]) } | TRIMMOMATIC
-    ch_versions = ch_versions.mix(TRIMMOMATIC.out.versions.first())
+    // Trim & QC with FASTP
+    fastp_input = merged_fastqs.map { meta, reads -> tuple(meta, reads, []) }
+    fastp_results = FASTP(fastp_input, false, false, false)
+    ch_versions = ch_versions.mix(fastp_results.versions)
+    qc_reports = fastp_results.html
+                  .map { meta, file -> file }
+                  .mix(fastp_results.json.map { meta, file -> file })
 
-    // FastQC after trimming
-    TRIMMOMATIC.out.trimmed_reads
-        .map { id, reads -> tuple(id+"_1", reads[0]) }
-        .concat(TRIMMOMATIC.out.trimmed_reads.map { id, reads -> tuple(id+"_2", reads[1]) })
-        .set { trimmed_fastq }
+    // Build the BWA index from the provided FASTA
+    bwa_index = BWAMEM2_INDEX(reference_fasta)
+    ch_versions = ch_versions.mix(bwa_index.versions)
 
-    FASTQC(trimmed_fastq)
-    FASTQC_TRIMMED = FASTQC.out
+    // Map to reference
+    bwa_results = BWAMEM2_MEM(fastp_results.reads, bwa_index.index, reference_fasta, true)
+    ch_versions = ch_versions.mix(bwa_results.versions)
 
-    // Combine both FASTQC results
-    combined_qc = FASTQC_RAW.concat(FASTQC_TRIMMED)
+    // Build the FASTA index (fai)
+    faidx_result = SAMTOOLS_FAIDX(reference_fasta, [[id: 'no_fai'], []], false)
+    ch_versions = ch_versions.mix(faidx_result.versions)
 
-    // Alignment
-    TRIMMOMATIC.out.trimmed_reads
-        .map { id, r1r2 -> tuple(id, r1r2[0], r1r2[1]) }
-        .combine(parsed.map { id, r1, r2, rg -> tuple(id, rg) })
-        .map { id, r1, r2, rg -> tuple(id, [r1, r2], rg) }
-        | BWA_MEM
-    ch_versions = ch_versions.mix(BWA_MEM.out.versions.first())
-
-    // Sort BAMs
-    BWA_MEM.out.bam | SAMTOOLS_SORT
-    ch_versions = ch_versions.mix(SAMTOOLS_SORT.out.versions.first())
-
-    // Merge BAMs (if needed)
-    SAMTOOLS_SORT.out | PICARD_MERGESAMFILES
-    ch_versions = ch_versions.mix(PICARD_MERGESAMFILES.out.versions.first())
-
-
-    PICARD_MERGESAMFILES.out
-        .combine(parsed.map { id, r1, r2, rg -> tuple(id, rg) })
-        .map { id, bam, rg -> tuple(id, bam, rg) }
-        | GATK4_ADDORREPLACEREADGROUPS
-    ch_versions = ch_versions.mix(GATK4_ADDORREPLACEREADGROUPS.out.versions.first())
+    // Add read groups
+    bwa_results.bam.view { "BWA emits: ${it} (${it.getClass()})" }
+    rg_bams = GATK4_ADDORREPLACEREADGROUPS(bwa_results.bam, bwa_index.index, reference_fasta)
+    ch_versions = ch_versions.mix(rg_bams.versions)
 
     emit:
-    sorted_bams = SAMTOOLS_SORT.out
-    qc_reports = combined_qc
+    bams = rg_bams.bam
+    qc_reports
     versions = ch_versions
 }
 

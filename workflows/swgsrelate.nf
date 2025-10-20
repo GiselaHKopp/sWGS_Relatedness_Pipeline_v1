@@ -20,18 +20,28 @@ include { PREPROCESS             } from '../subworkflows/local/preprocess'
 workflow SWGSRELATE {
 
     take:
-    ch_samplesheet // channel: samplesheet read in from --input
-    main:
+    samplesheet // channel: samplesheet read in from --input
 
+    main:
     // Channel for collecting software versions
     ch_versions = Channel.empty()
 
     // Channel for collecting MultiQC files
     ch_multiqc_files = Channel.empty()
 
-    PREPROCESS(samplesheet)
+    // Define reference genome and index
+    reference_fasta_ch = params.fasta ?
+    Channel.fromPath(params.fasta)
+        .map { f -> [ [id: f.baseName], f ] }
+        .collect()
+    : Channel.empty()
+
+    //
+    // SUBWORKFLOW: PREPROCESS
+    //
+    PREPROCESS(samplesheet, reference_fasta_ch)
     ch_versions = ch_versions.mix(PREPROCESS.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(PREPROCESS.out.qc_reports.map { it[2] })
+    ch_multiqc_files = ch_multiqc_files.mix(PREPROCESS.out.qc_reports)
 
     //
     // Collate and save software versions
