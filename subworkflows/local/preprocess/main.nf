@@ -59,8 +59,7 @@ workflow PREPROCESS {
     ch_versions = ch_versions.mix(faidx_result.versions)
 
     // Add read groups
-    bwa_results.bam.view { "BWA emits: ${it} (${it.getClass()})" }
-    rg_bams = GATK4_ADDORREPLACEREADGROUPS(bwa_results.bam, bwa_index.index, reference_fasta)
+    rg_bams = GATK4_ADDORREPLACEREADGROUPS(bwa_results.bam, reference_fasta, faidx_result.fai)
     ch_versions = ch_versions.mix(rg_bams.versions)
 
     emit:
