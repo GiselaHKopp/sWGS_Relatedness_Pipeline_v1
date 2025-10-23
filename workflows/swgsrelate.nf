@@ -41,7 +41,7 @@ workflow SWGSRELATE {
     //
     PREPROCESS(samplesheet, reference_fasta_ch)
     ch_versions = ch_versions.mix(PREPROCESS.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(PREPROCESS.out.qc_reports)
+    ch_multiqc_files = ch_multiqc_files.mix(PREPROCESS.out.ch_multiqc_files)
 
     //
     // Collate and save software versions
