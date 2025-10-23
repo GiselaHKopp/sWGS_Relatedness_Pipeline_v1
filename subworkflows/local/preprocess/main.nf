@@ -10,6 +10,8 @@ include { GATK4_ADDORREPLACEREADGROUPS   } from '../../../modules/nf-core/gatk4/
 include { GATK4_CREATESEQUENCEDICTIONARY } from '../../../modules/nf-core/gatk4/createsequencedictionary'
 include { GATK4SPARK_MARKDUPLICATES      } from '../../../modules/nf-core/gatk4spark/markduplicates'
 include { MOSDEPTH                       } from '../../../modules/nf-core/mosdepth'
+include { PRESEQ_CCURVE                  } from '../../../modules/nf-core/preseq/ccurve'
+include { PRESEQ_LCEXTRAP                } from '../../../modules/nf-core/preseq/lcextrap'
 include { SAMTOOLS_FAIDX                 } from '../../../modules/nf-core/samtools/faidx'
 include { SAMTOOLS_STATS                 } from '../../../modules/nf-core/samtools/stats'
 include { SPRING_DECOMPRESS              } from '../../../modules/nf-core/spring/decompress'
@@ -72,6 +74,15 @@ workflow PREPROCESS {
     markdup_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { it[1] }, faidx_result.fai.map{ it[1] }, seq_dict.dict.map{ it[1] })
     ch_versions = ch_versions.mix(markdup_results.versions)
     ch_multiqc_files = ch_multiqc_files.mix(markdup_results.metrics.map { it[1] })
+
+    // Preseq analyses
+    preseq_c_curve = PRESEQ_CCURVE(markdup_results.output)
+    ch_versions = ch_versions.mix(preseq_c_curve.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(preseq_c_curve.c_curve.map { meta, file -> file }).mix(preseq_c_curve.log.map{ meta, file -> file })
+
+    preseq_lc_extrap = PRESEQ_LCEXTRAP(markdup_results.output)
+    ch_versions = ch_versions.mix(preseq_lc_extrap.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(preseq_lc_extrap.lc_extrap.map { meta, file -> file }).mix(preseq_lc_extrap.log.map{ meta, file -> file })
 
     // Samtools stats on final BAMs
     samstats_input = markdup_results.output.join(markdup_results.bam_index).map { meta, bam, bai -> tuple(meta, bam, bai) }
