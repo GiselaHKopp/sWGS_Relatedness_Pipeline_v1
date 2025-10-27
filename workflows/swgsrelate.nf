@@ -11,6 +11,8 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
 include { PREPROCESS             } from '../subworkflows/local/preprocess'
+include { PREPARE_VARIANT_SET    } from '../subworkflows/local/prepare_variant_set'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -30,18 +32,47 @@ workflow SWGSRELATE {
     ch_multiqc_files = Channel.empty()
 
     // Define reference genome and index
-    reference_fasta_ch = params.fasta ?
+    ch_reference_fasta = params.fasta ?
     Channel.fromPath(params.fasta)
         .map { f -> [ [id: f.baseName], f ] }
         .collect()
     : Channel.empty()
 
-    //
-    // SUBWORKFLOW: PREPROCESS
-    //
-    PREPROCESS(samplesheet, reference_fasta_ch)
-    ch_versions = ch_versions.mix(PREPROCESS.out.versions)
-    ch_multiqc_files = ch_multiqc_files.mix(PREPROCESS.out.ch_multiqc_files)
+
+    if(params.stages.contains('preprocess')) {
+        //
+        // SUBWORKFLOW: PREPROCESS
+        //
+        ch_preprocessed = PREPROCESS(samplesheet, ch_reference_fasta)
+        ch_versions = ch_versions.mix(ch_preprocessed.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(ch_preprocessed.multiqc_files)
+    } else {
+        // TODO: Load BAMs from samplesheet without preprocessing
+        ch_preprocessed = [
+            bam: Channel.empty(),
+            bam_index: Channel.empty(),
+            fai: Channel.empty(),
+            dict: Channel.empty(),
+            versions: Channel.empty(),
+            multiqc_files: Channel.empty()
+        ]
+    }
+
+
+    //if(!params.known_variant_set) {
+        //
+        // SUBWORKFLOW: PREPROCESS
+        //
+        PREPARE_VARIANT_SET(
+            ch_preprocessed.bam,
+            ch_preprocessed.bam_index,
+            ch_preprocessed.fai,
+            ch_preprocessed.dict,
+            ch_reference_fasta
+        )
+        ch_versions = ch_versions.mix(PREPARE_VARIANT_SET.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(PREPARE_VARIANT_SET.out.multiqc_files)
+    //}
 
     //
     // Collate and save software versions
