@@ -61,7 +61,7 @@ workflow SWGSRELATE {
 
     //if(!params.known_variant_set) {
         //
-        // SUBWORKFLOW: PREPROCESS
+        // SUBWORKFLOW: PREPARE_VARIANT_SET
         //
         PREPARE_VARIANT_SET(
             ch_preprocessed.bam,
