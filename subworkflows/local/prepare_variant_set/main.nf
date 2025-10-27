@@ -24,22 +24,42 @@ workflow PREPARE_VARIANT_SET {
         }
 
     GATK4_HAPLOTYPECALLER(ch_inputs, ref_fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
-    versions = versions.mix(GATK4_HAPLOTYPECALLER.output.versions)
+    versions = versions.mix(GATK4_HAPLOTYPECALLER.out.versions)
 
+    // Get scaffolds from reference fasta
     ch_scaffolds = ref_fasta.map { it[1] }
         .map { file(it).readLines() }
         .flatten()
         .filter { it.startsWith(">") }
         .map { it.split()[0][1..-1] }
-        .dump()
-    /*
-    GATK4_GENOMICSDBIMPORT(haplotype_vcf_and_tbi, false, false, false)
+
+    // Join vcf + tbi channels
+    ch_vcf_and_tbi = GATK4_HAPLOTYPECALLER.out.vcf
+        .join(GATK4_HAPLOTYPECALLER.out.tbi)
+        .map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
+        .toList()
+        .map { records ->
+            def vcfs = records.collect { it[1] } // vcf paths
+            def tbis = records.collect { it[2] } // tbi paths
+            tuple(vcfs, tbis)
+        }
+
+    // Combine with scaffolds and create final input
+    ch_gdb_input = ch_scaffolds
+        .map { scaffold -> [id: scaffold] }
+        .combine(ch_vcf_and_tbi)
+        .map { meta, vcfs, tbis ->
+            tuple(meta, vcfs, tbis, [], meta.id, file('.'))
+        }
+
+
+    GATK4_GENOMICSDBIMPORT(ch_gdb_input, false, false, false)
     versions = versions.mix(GATK4_GENOMICSDBIMPORT.out.versions)
 
-    // --- 3. Joint genotyping ---
-    GATK4_GENOTYPEGVCFS(GATK4_GENOMICSDBIMPORT.out.workspace, ref_fasta)
+    ch_gtp_input = GATK4_GENOMICSDBIMPORT.out.genomicsdb.map { meta, gdb_path -> tuple(meta, gdb_path, [], [], []) }
+    GATK4_GENOTYPEGVCFS(ch_gtp_input, ref_fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_GENOTYPEGVCFS.out.versions)
-
+/*
     // --- 4. Hard filtering ---
     GATK4_VARIANTFILTRATION(GATK4_GENOTYPEGVCFS.out.vcf)
     GATK4_SELECTVARIANTS(GATK4_VARIANTFILTRATION.out.vcf)
