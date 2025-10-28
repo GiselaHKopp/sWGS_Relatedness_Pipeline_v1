@@ -65,27 +65,32 @@ workflow PREPARE_VARIANT_SET {
     versions = versions.mix(GATK4_GENOTYPEGVCFS.out.versions)
 
     // Run BCFtools stats
-    ch_vcf_tbi = GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi).map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
+    GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi)
+    .map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
+    .set { ch_vcf_tbi }
     BCFTOOLS_STATS(ch_vcf_tbi, [[id: 'no_regions'], []], [[id: 'no_targets'], []], [[id: 'no_samples'], []], [[id: 'no_exons'], []], ref_fasta)
     multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
     versions = versions.mix(BCFTOOLS_STATS.out.versions)
 
     // Filter variants to exclude low-quality calls
-    ch_filtered_input = ch_vcf_tbi.map { meta, vcf, tbi ->
+    ch_vcf_tbi.map { meta, vcf, tbi ->
         def new_meta = meta.clone()
         new_meta.id = "${meta.id}.filtered"
         tuple(new_meta, vcf, tbi)
-    }
+        }
+        .set { ch_filtered_input }
     GATK4_VARIANTFILTRATION(ch_filtered_input, ref_fasta, fai, dict, [[id: 'no_gzi'], []])
     versions = versions.mix(GATK4_VARIANTFILTRATION.out.versions)
 
 
     // Select only passing variants
-    ch_selected_input = GATK4_VARIANTFILTRATION.out.vcf.join(GATK4_VARIANTFILTRATION.out.tbi).map { meta, vcf, tbi ->
+    GATK4_VARIANTFILTRATION.out.vcf.join(GATK4_VARIANTFILTRATION.out.tbi)
+    .map { meta, vcf, tbi ->
         def new_meta = meta.clone()
         new_meta.id = "${meta.id}.selected"
         tuple(new_meta, vcf, tbi, [])
-    }
+        }
+        .set { ch_selected_input }
     GATK4_SELECTVARIANTS(ch_selected_input)
     versions = versions.mix(GATK4_SELECTVARIANTS.out.versions)
 
