@@ -53,12 +53,19 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["preprocess", "variant_calling", "relatedness_estimation"]
+                        "enum": ["preprocess", "prepare_variant_set", "relatedness_estimation"]
                     },
                     "uniqueItems": true,
                     "description": "Workflow stages to run",
                     "help_text": "Valid stages: 'preprocess', 'variant_calling', 'relatedness_estimation'",
                     "fa_icon": "fas fa-list-check"
+                },
+                "use_gatk_spark": {
+                    "type": "boolean",
+                    "description": "Use GATK Spark.",
+                    "help_text": "If set to true, the markduplicates step will be run using GATK4 Spark.",
+                    "default": false,
+                    "fa_icon": "fas fa-wand-sparkles"
                 }
             }
         },
