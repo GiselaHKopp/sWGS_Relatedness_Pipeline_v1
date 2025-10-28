@@ -2,6 +2,7 @@ include { BCFTOOLS_STATS          } from '../../../modules/nf-core/bcftools/stat
 include { GATK4_GENOMICSDBIMPORT  } from '../../../modules/nf-core/gatk4/genomicsdbimport'
 include { GATK4_GENOTYPEGVCFS     } from '../../../modules/nf-core/gatk4/genotypegvcfs'
 include { GATK4_HAPLOTYPECALLER   } from '../../../modules/nf-core/gatk4/haplotypecaller'
+include { GATK4_MERGEVCFS         } from '../../../modules/nf-core/gatk4/mergevcfs'
 include { GATK4_SELECTVARIANTS    } from '../../../modules/nf-core/gatk4/selectvariants'
 include { GATK4_VARIANTFILTRATION } from '../../../modules/nf-core/gatk4/variantfiltration'
 
@@ -69,29 +70,40 @@ workflow PREPARE_VARIANT_SET {
     multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
     versions = versions.mix(BCFTOOLS_STATS.out.versions)
 
-    // Append "filtered" to avoid input/output name clashes
+    // Filter variants to exclude low-quality calls
     ch_filtered_input = ch_vcf_tbi.map { meta, vcf, tbi ->
         def new_meta = meta.clone()
         new_meta.id = "${meta.id}.filtered"
         tuple(new_meta, vcf, tbi)
     }
-
-    // Filter variants to exclude low-quality calls
     GATK4_VARIANTFILTRATION(ch_filtered_input, ref_fasta, fai, dict, [[id: 'no_gzi'], []])
     versions = versions.mix(GATK4_VARIANTFILTRATION.out.versions)
 
-/*
-    // Select only passing variants
-    GATK4_SELECTVARIANTS(GATK4_VARIANTFILTRATION.out.vcf)
 
+    // Select only passing variants
+    ch_selected_input = GATK4_VARIANTFILTRATION.out.vcf.join(GATK4_VARIANTFILTRATION.out.tbi).map { meta, vcf, tbi ->
+        def new_meta = meta.clone()
+        new_meta.id = "${meta.id}.selected"
+        tuple(new_meta, vcf, tbi, [])
+    }
+    GATK4_SELECTVARIANTS(ch_selected_input)
+    versions = versions.mix(GATK4_SELECTVARIANTS.out.versions)
 
     // Gather VCFs into single file
-    GATK4_GATHERVCFS(GATK4_SELECTVARIANTS.out.vcf)
-*/
+    GATK4_SELECTVARIANTS.out.vcf
+        .map { meta, vcf -> vcf } // discard meta
+        .collect()
+        .map { vcfs ->
+            def meta = [ id: "merged" ]
+            tuple(meta, vcfs)
+        }
+        .set { ch_merge_vcf_input }
+    GATK4_MERGEVCFS(ch_merge_vcf_input, dict)
+    versions = versions.mix(GATK4_MERGEVCFS.out.versions)
+
     emit:
-    vcf = GATK4_HAPLOTYPECALLER.out.vcf
-    tbi = GATK4_HAPLOTYPECALLER.out.tbi
+    vcf = GATK4_MERGEVCFS.out.vcf
+    tbi = GATK4_MERGEVCFS.out.tbi
     multiqc_files
     versions
-    ch_scaffolds
 }
