@@ -28,13 +28,13 @@ workflow PREPROCESS {
 
     main:
     // Collect software versions and QC reports
-    versions = Channel.empty()
-    multiqc_files = Channel.empty()
+    versions = channel.empty()
+    multiqc_files = channel.empty()
 
     // Split by file type (spring vs fastq)
-    samplesheet.branch {
-        spring: it[1].every { f -> f.getName().endsWith('.spring') }
-        fastq : it[1].every { f -> f.getName().endsWith('.fastq') || f.getName().endsWith('.fastq.gz') || f.getName().endsWith('.fq.gz') }
+    samplesheet.branch { row ->
+        spring: row[1].every { file -> file.getName().endsWith('.spring') }
+        fastq : row[1].every { file -> file.getName().endsWith('.fastq') || file.getName().endsWith('.fastq.gz') || file.getName().endsWith('.fq.gz') }
     }.set{ input_branches }
 
     // Decompress SPRING → FASTQ pairs
@@ -48,7 +48,7 @@ workflow PREPROCESS {
     fastp_input = merged_fastqs.map { meta, reads -> tuple(meta, reads, []) }
     fastp_results = FASTP(fastp_input, false, false, false)
     versions = versions.mix(fastp_results.versions)
-    multiqc_files = fastp_results.html.map { meta, file -> file }.mix(fastp_results.json.map { meta, file -> file })
+    multiqc_files = fastp_results.html.map { _meta, file -> file }.mix(fastp_results.json.map { _meta, file -> file })
 
     // Build the BWA index from the provided FASTA
     bwa_index = BWAMEM2_INDEX(reference_fasta)
@@ -71,30 +71,30 @@ workflow PREPROCESS {
     versions = versions.mix(seq_dict.versions)
 
     // Mark duplicates
-    markdup_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { it[1] }, faidx_result.fai.map{ it[1] }, seq_dict.dict.map{ it[1] })
+    markdup_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { tuple -> tuple[1] }, faidx_result.fai.map{ tuple -> tuple[1] }, seq_dict.dict.map{ tuple -> tuple[1] })
     versions = versions.mix(markdup_results.versions)
-    multiqc_files = multiqc_files.mix(markdup_results.metrics.map { it[1] })
+    multiqc_files = multiqc_files.mix(markdup_results.metrics.map { tuple -> tuple[1] })
 
     // Preseq analyses
     preseq_c_curve = PRESEQ_CCURVE(markdup_results.output)
     versions = versions.mix(preseq_c_curve.versions)
-    multiqc_files = multiqc_files.mix(preseq_c_curve.c_curve.map { meta, file -> file }).mix(preseq_c_curve.log.map{ meta, file -> file })
+    multiqc_files = multiqc_files.mix(preseq_c_curve.c_curve.map { _meta, file -> file }).mix(preseq_c_curve.log.map{ _meta, file -> file })
 
     preseq_lc_extrap = PRESEQ_LCEXTRAP(markdup_results.output)
     versions = versions.mix(preseq_lc_extrap.versions)
-    multiqc_files = multiqc_files.mix(preseq_lc_extrap.lc_extrap.map { meta, file -> file }).mix(preseq_lc_extrap.log.map{ meta, file -> file })
+    multiqc_files = multiqc_files.mix(preseq_lc_extrap.lc_extrap.map { _meta, file -> file }).mix(preseq_lc_extrap.log.map{ _meta, file -> file })
 
     // Samtools stats on final BAMs
     samstats_input = markdup_results.output.join(markdup_results.bam_index).map { meta, bam, bai -> tuple(meta, bam, bai) }
     samstats_results = SAMTOOLS_STATS(samstats_input, reference_fasta)
     versions = versions.mix(samstats_results.versions)
-    multiqc_files = multiqc_files.mix(samstats_results.stats.map { it[1] })
+    multiqc_files = multiqc_files.mix(samstats_results.stats.map { tuple -> tuple[1] })
 
     // Coverage calculation with mosdepth
     mosdepth_input = markdup_results.output.join(markdup_results.bam_index).map { meta, bam, bai -> tuple(meta, bam, bai, []) }
     mosdepth_results = MOSDEPTH(mosdepth_input, reference_fasta)
     versions = versions.mix(mosdepth_results.versions)
-    multiqc_files = multiqc_files.mix(mosdepth_results.global_txt.map { meta, file -> file }).mix(mosdepth_results.summary_txt.map { meta, file -> file })
+    multiqc_files = multiqc_files.mix(mosdepth_results.global_txt.map { _meta, file -> file }).mix(mosdepth_results.summary_txt.map { _meta, file -> file })
 
     emit:
     bam = markdup_results.output            // val(meta), path(bam)
