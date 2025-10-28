@@ -26,17 +26,17 @@ workflow SWGSRELATE {
 
     main:
     // Channel for collecting software versions
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // Channel for collecting MultiQC files
-    ch_multiqc_files = Channel.empty()
+    ch_multiqc_files = channel.empty()
 
     // Define reference genome and index
     ch_reference_fasta = params.fasta ?
-    Channel.fromPath(params.fasta)
+    channel.fromPath(params.fasta)
         .map { f -> [ [id: f.baseName], f ] }
         .collect()
-    : Channel.empty()
+    : channel.empty()
 
 
     if(params.stages.contains('preprocess')) {
@@ -49,12 +49,12 @@ workflow SWGSRELATE {
     } else {
         // TODO: Load BAMs from samplesheet without preprocessing
         ch_preprocessed = [
-            bam: Channel.empty(),
-            bam_index: Channel.empty(),
-            fai: Channel.empty(),
-            dict: Channel.empty(),
-            versions: Channel.empty(),
-            multiqc_files: Channel.empty()
+            bam: channel.empty(),
+            bam_index: channel.empty(),
+            fai: channel.empty(),
+            dict: channel.empty(),
+            versions: channel.empty(),
+            multiqc_files: channel.empty()
         ]
     }
 
