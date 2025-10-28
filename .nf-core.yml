@@ -13,3 +13,7 @@ template:
   force: true
   outdir: .
   is_nfcore: true
+  gpu: true
+  skip_features:
+    - igenomes
+    - fastqc
