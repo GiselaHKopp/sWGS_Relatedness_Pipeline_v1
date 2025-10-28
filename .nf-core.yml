@@ -1,19 +1,15 @@
-repository_type: pipeline
-
-nf_core_version: 3.3.2
-
 lint: {}
-
+nf_core_version: 3.4.1
+repository_type: pipeline
 template:
-  org: nf-core
-  name: swgsrelate
-  description: A workflow for sWGS genotype likelihood calling and relatedness estimation
   author: Thomas Isensee
-  version: 1.0.0dev
-  force: true
-  outdir: .
+  description: A workflow for sWGS genotype likelihood calling and relatedness estimation
+  force: false
   is_nfcore: true
-  gpu: true
+  name: swgsrelate
+  org: nf-core
+  outdir: .
   skip_features:
     - igenomes
     - fastqc
+  version: 1.0.0dev
