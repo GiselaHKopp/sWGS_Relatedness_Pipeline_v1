@@ -82,7 +82,6 @@ workflow PREPARE_VARIANT_SET {
     GATK4_VARIANTFILTRATION(ch_filtered_input, ref_fasta, fai, dict, [[id: 'no_gzi'], []])
     versions = versions.mix(GATK4_VARIANTFILTRATION.out.versions)
 
-
     // Select only passing variants
     GATK4_VARIANTFILTRATION.out.vcf.join(GATK4_VARIANTFILTRATION.out.tbi)
     .map { meta, vcf, tbi ->

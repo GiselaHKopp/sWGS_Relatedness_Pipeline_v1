@@ -8,6 +8,7 @@ include { BWAMEM2_MEM                    } from '../../../modules/nf-core/bwamem
 include { FASTP                          } from '../../../modules/nf-core/fastp'
 include { GATK4_ADDORREPLACEREADGROUPS   } from '../../../modules/nf-core/gatk4/addorreplacereadgroups'
 include { GATK4_CREATESEQUENCEDICTIONARY } from '../../../modules/nf-core/gatk4/createsequencedictionary'
+include { GATK4_MARKDUPLICATES           } from '../../../modules/nf-core/gatk4/markduplicates'
 include { GATK4SPARK_MARKDUPLICATES      } from '../../../modules/nf-core/gatk4spark/markduplicates'
 include { MOSDEPTH                       } from '../../../modules/nf-core/mosdepth'
 include { PRESEQ_CCURVE                  } from '../../../modules/nf-core/preseq/ccurve'
@@ -71,36 +72,44 @@ workflow PREPROCESS {
     versions = versions.mix(seq_dict.versions)
 
     // Mark duplicates
-    markdup_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { tuple -> tuple[1] }, faidx_result.fai.map{ tuple -> tuple[1] }, seq_dict.dict.map{ tuple -> tuple[1] })
-    versions = versions.mix(markdup_results.versions)
-    multiqc_files = multiqc_files.mix(markdup_results.metrics.map { tuple -> tuple[1] })
+    if(params.use_spark) {
+        markduplicates_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { tuple -> tuple[1] }, faidx_result.fai.map{ tuple -> tuple[1] }, seq_dict.dict.map{ tuple -> tuple[1] })
+        ch_markduplicates_bam = markduplicates_results.output
+        ch_markduplicates_bai = markduplicates_results.bam_index
+    } else {
+        markduplicates_results = GATK4_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { tuple -> tuple[1] }, faidx_result.fai.map{ tuple -> tuple[1] })
+        ch_markduplicates_bam = markduplicates_results.bam
+        ch_markduplicates_bai = markduplicates_results.bai
+    }
+    versions = versions.mix(markduplicates_results.versions)
+    multiqc_files = multiqc_files.mix(markduplicates_results.metrics.map { tuple -> tuple[1] })
 
     // Preseq analyses
-    preseq_c_curve = PRESEQ_CCURVE(markdup_results.output)
+    preseq_c_curve = PRESEQ_CCURVE(ch_markduplicates_bam)
     versions = versions.mix(preseq_c_curve.versions)
     multiqc_files = multiqc_files.mix(preseq_c_curve.c_curve.map { _meta, file -> file }).mix(preseq_c_curve.log.map{ _meta, file -> file })
 
-    preseq_lc_extrap = PRESEQ_LCEXTRAP(markdup_results.output)
+    preseq_lc_extrap = PRESEQ_LCEXTRAP(ch_markduplicates_bam)
     versions = versions.mix(preseq_lc_extrap.versions)
     multiqc_files = multiqc_files.mix(preseq_lc_extrap.lc_extrap.map { _meta, file -> file }).mix(preseq_lc_extrap.log.map{ _meta, file -> file })
 
     // Samtools stats on final BAMs
-    samstats_input = markdup_results.output.join(markdup_results.bam_index).map { meta, bam, bai -> tuple(meta, bam, bai) }
+    samstats_input = ch_markduplicates_bam.join(ch_markduplicates_bai).map { meta, bam, bai -> tuple(meta, bam, bai) }
     samstats_results = SAMTOOLS_STATS(samstats_input, reference_fasta)
     versions = versions.mix(samstats_results.versions)
     multiqc_files = multiqc_files.mix(samstats_results.stats.map { tuple -> tuple[1] })
 
     // Coverage calculation with mosdepth
-    mosdepth_input = markdup_results.output.join(markdup_results.bam_index).map { meta, bam, bai -> tuple(meta, bam, bai, []) }
+    mosdepth_input = ch_markduplicates_bam.join(ch_markduplicates_bai).map { meta, bam, bai -> tuple(meta, bam, bai, []) }
     mosdepth_results = MOSDEPTH(mosdepth_input, reference_fasta)
     versions = versions.mix(mosdepth_results.versions)
     multiqc_files = multiqc_files.mix(mosdepth_results.global_txt.map { _meta, file -> file }).mix(mosdepth_results.summary_txt.map { _meta, file -> file })
 
     emit:
-    bam = markdup_results.output            // val(meta), path(bam)
-    bam_index = markdup_results.bam_index   // val(meta), path(bai)
-    fai = faidx_result.fai                  // val(meta), path(fai)
-    dict = seq_dict.dict                    // val(meta), path(dict)
+    bam = ch_markduplicates_bam        // val(meta), path(bam)
+    bam_index = ch_markduplicates_bai  // val(meta), path(bai)
+    fai = faidx_result.fai             // val(meta), path(fai)
+    dict = seq_dict.dict               // val(meta), path(dict)
     multiqc_files
     versions
 }
