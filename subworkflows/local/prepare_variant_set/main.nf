@@ -24,10 +24,11 @@ workflow PREPARE_VARIANT_SET {
             tuple(meta, bamfile, baifile, [], [])
         }
 
+    // Run GATK HaplotypeCaller
     GATK4_HAPLOTYPECALLER(ch_inputs, ref_fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_HAPLOTYPECALLER.out.versions)
 
-    // Get scaffolds from reference fasta
+    // GExtract scaffolds from reference FASTA
     ch_scaffolds = ref_fasta.map { tuple -> tuple[1] }
         .map { path -> file(path).readLines() }
         .flatten()
@@ -45,7 +46,7 @@ workflow PREPARE_VARIANT_SET {
             tuple(vcfs, tbis)
         }
 
-    // Combine with scaffolds and create final input
+    // Prepare input for GATK GenomicsDBImport
     ch_gdb_input = ch_scaffolds
         .map { scaffold -> [id: scaffold] }
         .combine(ch_vcf_and_tbi)
@@ -53,24 +54,38 @@ workflow PREPARE_VARIANT_SET {
             tuple(meta, vcfs, tbis, [], meta.id, file('.'))
         }
 
-
+    // Run GATK GenomicsDBImport
     GATK4_GENOMICSDBIMPORT(ch_gdb_input, false, false, false)
     versions = versions.mix(GATK4_GENOMICSDBIMPORT.out.versions)
 
+    // Run GATK GenotypeGVCFs
     ch_gtp_input = GATK4_GENOMICSDBIMPORT.out.genomicsdb.map { meta, gdb_path -> tuple(meta, gdb_path, [], [], []) }
     GATK4_GENOTYPEGVCFS(ch_gtp_input, ref_fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_GENOTYPEGVCFS.out.versions)
 
-    ch_bcfstats_input = GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi).map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
-    BCFTOOLS_STATS(ch_bcfstats_input, [[id: 'no_regions'], []], [[id: 'no_targets'], []], [[id: 'no_samples'], []], [[id: 'no_exons'], []], ref_fasta)
+    // Run BCFtools stats
+    ch_vcf_tbi = GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi).map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
+    BCFTOOLS_STATS(ch_vcf_tbi, [[id: 'no_regions'], []], [[id: 'no_targets'], []], [[id: 'no_samples'], []], [[id: 'no_exons'], []], ref_fasta)
     multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
     versions = versions.mix(BCFTOOLS_STATS.out.versions)
+
+    // Append "filtered" to avoid input/output name clashes
+    ch_filtered_input = ch_vcf_tbi.map { meta, vcf, tbi ->
+        def new_meta = meta.clone()
+        new_meta.id = "${meta.id}.filtered"
+        tuple(new_meta, vcf, tbi)
+    }
+
+    // Filter variants to exclude low-quality calls
+    GATK4_VARIANTFILTRATION(ch_filtered_input, ref_fasta, fai, dict, [[id: 'no_gzi'], []])
+    versions = versions.mix(GATK4_VARIANTFILTRATION.out.versions)
+
 /*
-    // --- 4. Hard filtering ---
-    GATK4_VARIANTFILTRATION(GATK4_GENOTYPEGVCFS.out.vcf)
+    // Select only passing variants
     GATK4_SELECTVARIANTS(GATK4_VARIANTFILTRATION.out.vcf)
 
-    // --- 5. Gather to single VCF ---
+
+    // Gather VCFs into single file
     GATK4_GATHERVCFS(GATK4_SELECTVARIANTS.out.vcf)
 */
     emit:
