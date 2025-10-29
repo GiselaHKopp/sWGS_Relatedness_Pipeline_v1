@@ -72,7 +72,7 @@ workflow PREPROCESS {
     versions = versions.mix(seq_dict.versions)
 
     // Mark duplicates
-    if(params.use_spark) {
+    if(params.use_gatk_spark) {
         markduplicates_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { tuple -> tuple[1] }, faidx_result.fai.map{ tuple -> tuple[1] }, seq_dict.dict.map{ tuple -> tuple[1] })
         ch_markduplicates_bam = markduplicates_results.output
         ch_markduplicates_bai = markduplicates_results.bam_index

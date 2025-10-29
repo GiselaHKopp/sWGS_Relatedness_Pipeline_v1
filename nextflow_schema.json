@@ -49,15 +49,28 @@
             "fa_icon": "fas fa-list-check",
             "required": ["stages"],
             "properties": {
+                "bqsr_rounds": {
+                    "type": "integer",
+                    "description": "Number of BQSR rounds to perform.",
+                    "help_text": "Number of Base Quality Score Recalibration (BQSR) rounds to perform. Typically 1 or 2 rounds are sufficient.",
+                    "default": 1,
+                    "fa_icon": "fas fa-hashtag"
+                },
                 "stages": {
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "enum": ["preprocess", "prepare_variant_set", "relatedness_estimation"]
+                        "enum": [
+                            "preprocess",
+                            "prepare_variant_set",
+                            "base_quality_score_recalibration",
+                            "genotype_likelihood",
+                            "relatedness_estimation"
+                        ]
                     },
                     "uniqueItems": true,
                     "description": "Workflow stages to run",
-                    "help_text": "Valid stages: 'preprocess', 'variant_calling', 'relatedness_estimation'",
+                    "help_text": "Valid stages: 'prepare_variant_set', 'variant_calling', 'base_quality_score_recalibration', 'genotype_likelihood', 'relatedness_estimation'",
                     "fa_icon": "fas fa-list-check"
                 },
                 "use_gatk_spark": {
