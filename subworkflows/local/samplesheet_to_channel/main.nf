@@ -11,7 +11,7 @@ workflow SAMPLESHEET_TO_CHANNEL {
     samplesheet
 
     main:
-    ch_samplesheet = Channel
+    ch_samplesheet = channel
         .of(file(samplesheet).text)
         .splitCsv(header:true)
         .map { row ->
