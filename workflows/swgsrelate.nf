@@ -9,6 +9,8 @@ include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pi
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
+include { PREPARE_GENOME         } from '../subworkflows/local/prepare_genome'
+include { PREPARE_INTERVALS      } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS             } from '../subworkflows/local/preprocess'
 include { CALL_VARIANTS          } from '../subworkflows/local/call_variants'
 include { FILTER_VARIANTS        } from '../subworkflows/local/filter_variants'
@@ -33,7 +35,7 @@ workflow SWGSRELATE {
     ch_multiqc_files = channel.empty()
 
     // Define reference genome and index
-    ch_reference_fasta = params.fasta ?
+    ch_fasta = params.fasta ?
     channel.fromPath(params.fasta)
         .map { f -> [ [id: f.baseName], f ] }
         .collect()
@@ -42,21 +44,33 @@ workflow SWGSRELATE {
 
     if(params.stages.contains('preprocess')) {
         //
+        // SUBWORKFLOW: PREPARE_GENOME
+        //
+        PREPARE_GENOME(ch_fasta)
+        ch_fai = PREPARE_GENOME.out.fai
+        ch_dict = PREPARE_GENOME.out.dict
+        ch_versions = ch_versions.mix(PREPARE_GENOME.out.versions)
+        //
+        // SUBWORKFLOW: PREPARE_INTERVALS
+        //
+        PREPARE_INTERVALS(ch_fai)
+        ch_intervals_combined = PREPARE_INTERVALS.out.intervals_combined
+        ch_intervals_split = PREPARE_INTERVALS.out.intervals_split
+        ch_versions = ch_versions.mix(PREPARE_INTERVALS.out.versions)
+        //
         // SUBWORKFLOW: PREPROCESS
         //
-        ch_preprocessed = PREPROCESS(samplesheet, ch_reference_fasta)
+        ch_preprocessed = PREPROCESS(samplesheet, ch_fasta, ch_fai, ch_dict)
+        ch_bam = ch_preprocessed.bam
+        ch_bai = ch_preprocessed.bai
         ch_versions = ch_versions.mix(ch_preprocessed.versions)
         ch_multiqc_files = ch_multiqc_files.mix(ch_preprocessed.multiqc_files)
     } else {
         // TODO: Load BAMs from samplesheet without preprocessing
-        ch_preprocessed = [
-            bam: channel.empty(),
-            bam_index: channel.empty(),
-            fai: channel.empty(),
-            dict: channel.empty(),
-            versions: channel.empty(),
-            multiqc_files: channel.empty()
-        ]
+        ch_bam = channel.empty()
+        ch_bai = channel.empty()
+        ch_fai = channel.empty()
+        ch_dict = channel.empty()
     }
 
     if(params.stages.contains('prepare_variant_set')) {
@@ -64,11 +78,12 @@ workflow SWGSRELATE {
         // SUBWORKFLOW: CALL_VARIANTS
         //
         CALL_VARIANTS(
-            ch_preprocessed.bam,
-            ch_preprocessed.bam_index,
-            ch_preprocessed.fai,
-            ch_preprocessed.dict,
-            ch_reference_fasta
+            ch_fasta,
+            ch_fai,
+            ch_dict,
+            ch_intervals_split,
+            ch_bam,
+            ch_bai
         )
         ch_versions = ch_versions.mix(CALL_VARIANTS.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS.out.multiqc_files)
@@ -77,11 +92,11 @@ workflow SWGSRELATE {
         // SUBWORKFLOW: FILTER_VARIANTS
         //
         FILTER_VARIANTS(
+            ch_fasta,
+            ch_fai,
+            ch_dict,
             CALL_VARIANTS.out.vcf,
-            CALL_VARIANTS.out.tbi,
-            ch_preprocessed.fai,
-            ch_preprocessed.dict,
-            ch_reference_fasta
+            CALL_VARIANTS.out.tbi
         )
         ch_versions = ch_versions.mix(FILTER_VARIANTS.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(FILTER_VARIANTS.out.multiqc_files)

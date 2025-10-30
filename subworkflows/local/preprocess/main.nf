@@ -7,28 +7,27 @@ include { BWAMEM2_INDEX                  } from '../../../modules/nf-core/bwamem
 include { BWAMEM2_MEM                    } from '../../../modules/nf-core/bwamem2/mem'
 include { FASTP                          } from '../../../modules/nf-core/fastp'
 include { GATK4_ADDORREPLACEREADGROUPS   } from '../../../modules/nf-core/gatk4/addorreplacereadgroups'
-include { GATK4_CREATESEQUENCEDICTIONARY } from '../../../modules/nf-core/gatk4/createsequencedictionary'
 include { GATK4_MARKDUPLICATES           } from '../../../modules/nf-core/gatk4/markduplicates'
 include { GATK4SPARK_MARKDUPLICATES      } from '../../../modules/nf-core/gatk4spark/markduplicates'
 include { MOSDEPTH                       } from '../../../modules/nf-core/mosdepth'
 include { PRESEQ_CCURVE                  } from '../../../modules/nf-core/preseq/ccurve'
 include { PRESEQ_LCEXTRAP                } from '../../../modules/nf-core/preseq/lcextrap'
-include { SAMTOOLS_FAIDX                 } from '../../../modules/nf-core/samtools/faidx'
 include { SAMTOOLS_STATS                 } from '../../../modules/nf-core/samtools/stats'
 include { SPRING_DECOMPRESS              } from '../../../modules/nf-core/spring/decompress'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN MAIN WORKFLOW
+    RUN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow PREPROCESS {
     take:
     samplesheet
-    reference_fasta
+    fasta
+    fai
+    dict
 
     main:
-    // Collect software versions and QC reports
     versions = channel.empty()
     multiqc_files = channel.empty()
 
@@ -52,32 +51,24 @@ workflow PREPROCESS {
     multiqc_files = fastp_results.html.map { _meta, file -> file }.mix(fastp_results.json.map { _meta, file -> file })
 
     // Build the BWA index from the provided FASTA
-    bwa_index = BWAMEM2_INDEX(reference_fasta)
+    bwa_index = BWAMEM2_INDEX(fasta)
     versions = versions.mix(bwa_index.versions)
 
     // Map to reference
-    bwa_results = BWAMEM2_MEM(fastp_results.reads, bwa_index.index, reference_fasta, true)
+    bwa_results = BWAMEM2_MEM(fastp_results.reads, bwa_index.index, fasta, true)
     versions = versions.mix(bwa_results.versions)
 
-    // Build the FASTA index (fai)
-    faidx_result = SAMTOOLS_FAIDX(reference_fasta, [[id: 'no_fai'], []], false)
-    versions = versions.mix(faidx_result.versions)
-
     // Add read groups
-    rg_bams = GATK4_ADDORREPLACEREADGROUPS(bwa_results.bam, reference_fasta, faidx_result.fai)
+    rg_bams = GATK4_ADDORREPLACEREADGROUPS(bwa_results.bam, fasta, fai)
     versions = versions.mix(rg_bams.versions)
 
     // Mark duplicates
-    seq_dict = GATK4_CREATESEQUENCEDICTIONARY(reference_fasta)
-    versions = versions.mix(seq_dict.versions)
-
-    // Mark duplicates
     if(params.use_gatk_spark) {
-        markduplicates_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { tuple -> tuple[1] }, faidx_result.fai.map{ tuple -> tuple[1] }, seq_dict.dict.map{ tuple -> tuple[1] })
+        markduplicates_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] }, dict.map{ tuple -> tuple[1] })
         ch_markduplicates_bam = markduplicates_results.output
         ch_markduplicates_bai = markduplicates_results.bam_index
     } else {
-        markduplicates_results = GATK4_MARKDUPLICATES(rg_bams.bam, reference_fasta.map { tuple -> tuple[1] }, faidx_result.fai.map{ tuple -> tuple[1] })
+        markduplicates_results = GATK4_MARKDUPLICATES(rg_bams.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
         ch_markduplicates_bam = markduplicates_results.bam
         ch_markduplicates_bai = markduplicates_results.bai
     }
@@ -95,27 +86,19 @@ workflow PREPROCESS {
 
     // Samtools stats on final BAMs
     samstats_input = ch_markduplicates_bam.join(ch_markduplicates_bai).map { meta, bam, bai -> tuple(meta, bam, bai) }
-    samstats_results = SAMTOOLS_STATS(samstats_input, reference_fasta)
+    samstats_results = SAMTOOLS_STATS(samstats_input, fasta)
     versions = versions.mix(samstats_results.versions)
     multiqc_files = multiqc_files.mix(samstats_results.stats.map { tuple -> tuple[1] })
 
     // Coverage calculation with mosdepth
     mosdepth_input = ch_markduplicates_bam.join(ch_markduplicates_bai).map { meta, bam, bai -> tuple(meta, bam, bai, []) }
-    mosdepth_results = MOSDEPTH(mosdepth_input, reference_fasta)
+    mosdepth_results = MOSDEPTH(mosdepth_input, fasta)
     versions = versions.mix(mosdepth_results.versions)
     multiqc_files = multiqc_files.mix(mosdepth_results.global_txt.map { _meta, file -> file }).mix(mosdepth_results.summary_txt.map { _meta, file -> file })
 
     emit:
-    bam = ch_markduplicates_bam        // val(meta), path(bam)
-    bam_index = ch_markduplicates_bai  // val(meta), path(bai)
-    fai = faidx_result.fai             // val(meta), path(fai)
-    dict = seq_dict.dict               // val(meta), path(dict)
+    bam = ch_markduplicates_bam // val(meta), path(bam)
+    bai = ch_markduplicates_bai // val(meta), path(bai)
     multiqc_files
     versions
 }
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
