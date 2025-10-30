@@ -10,7 +10,9 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
 include { PREPROCESS             } from '../subworkflows/local/preprocess'
-include { PREPARE_VARIANT_SET    } from '../subworkflows/local/prepare_variant_set'
+include { CALL_VARIANTS          } from '../subworkflows/local/call_variants'
+include { FILTER_VARIANTS        } from '../subworkflows/local/filter_variants'
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -59,17 +61,30 @@ workflow SWGSRELATE {
 
     if(params.stages.contains('prepare_variant_set')) {
         //
-        // SUBWORKFLOW: PREPARE_VARIANT_SET
+        // SUBWORKFLOW: CALL_VARIANTS
         //
-        PREPARE_VARIANT_SET(
+        CALL_VARIANTS(
             ch_preprocessed.bam,
             ch_preprocessed.bam_index,
             ch_preprocessed.fai,
             ch_preprocessed.dict,
             ch_reference_fasta
         )
-        ch_versions = ch_versions.mix(PREPARE_VARIANT_SET.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(PREPARE_VARIANT_SET.out.multiqc_files)
+        ch_versions = ch_versions.mix(CALL_VARIANTS.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS.out.multiqc_files)
+
+        //
+        // SUBWORKFLOW: FILTER_VARIANTS
+        //
+        FILTER_VARIANTS(
+            CALL_VARIANTS.out.vcf,
+            CALL_VARIANTS.out.tbi,
+            ch_preprocessed.fai,
+            ch_preprocessed.dict,
+            ch_reference_fasta
+        )
+        ch_versions = ch_versions.mix(FILTER_VARIANTS.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(FILTER_VARIANTS.out.multiqc_files)
     }
 
     //
