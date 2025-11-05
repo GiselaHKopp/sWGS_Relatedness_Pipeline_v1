@@ -12,7 +12,7 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgs
 include { PREPARE_GENOME         } from '../subworkflows/local/prepare_genome'
 include { PREPARE_INTERVALS      } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS             } from '../subworkflows/local/preprocess'
-include { CALL_VARIANTS          } from '../subworkflows/local/call_variants'
+include { CALL_VARIANTS_GATK     } from '../subworkflows/local/call_variants_gatk'
 include { FILTER_VARIANTS        } from '../subworkflows/local/filter_variants'
 
 
@@ -77,7 +77,7 @@ workflow SWGSRELATE {
         //
         // SUBWORKFLOW: CALL_VARIANTS
         //
-        CALL_VARIANTS(
+        CALL_VARIANTS_GATK(
             ch_fasta,
             ch_fai,
             ch_dict,
@@ -85,8 +85,8 @@ workflow SWGSRELATE {
             ch_bam,
             ch_bai
         )
-        ch_versions = ch_versions.mix(CALL_VARIANTS.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS.out.multiqc_files)
+        ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
 
         //
         // SUBWORKFLOW: FILTER_VARIANTS
@@ -95,8 +95,8 @@ workflow SWGSRELATE {
             ch_fasta,
             ch_fai,
             ch_dict,
-            CALL_VARIANTS.out.vcf,
-            CALL_VARIANTS.out.tbi
+            CALL_VARIANTS_GATK.out.vcf,
+            CALL_VARIANTS_GATK.out.tbi
         )
         ch_versions = ch_versions.mix(FILTER_VARIANTS.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(FILTER_VARIANTS.out.multiqc_files)

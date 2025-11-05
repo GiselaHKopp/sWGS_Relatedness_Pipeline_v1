@@ -15,7 +15,7 @@ include { GATK4_MERGEVCFS        } from '../../../modules/nf-core/gatk4/mergevcf
     RUN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow CALL_VARIANTS {
+workflow CALL_VARIANTS_GATK {
     take:
     fasta       // tuple(meta2, path_to_fasta)                          e.g. [ id: 'ref' ], ref.fasta
     fai         // tuple(meta, path_to_fasta.fai)                       e.g. [ id: 'ref' ], ref.fasta.fai
