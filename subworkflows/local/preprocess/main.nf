@@ -76,13 +76,13 @@ workflow PREPROCESS {
     multiqc_files = multiqc_files.mix(markduplicates_results.metrics.map { tuple -> tuple[1] })
 
     // Preseq analyses
-    preseq_c_curve = PRESEQ_CCURVE(ch_markduplicates_bam)
-    versions = versions.mix(preseq_c_curve.versions)
-    multiqc_files = multiqc_files.mix(preseq_c_curve.c_curve.map { _meta, file -> file }).mix(preseq_c_curve.log.map{ _meta, file -> file })
+    //preseq_c_curve = PRESEQ_CCURVE(ch_markduplicates_bam)
+    //versions = versions.mix(preseq_c_curve.versions)
+    //multiqc_files = multiqc_files.mix(preseq_c_curve.c_curve.map { _meta, file -> file }).mix(preseq_c_curve.log.map{ _meta, file -> file })
 
-    preseq_lc_extrap = PRESEQ_LCEXTRAP(ch_markduplicates_bam)
-    versions = versions.mix(preseq_lc_extrap.versions)
-    multiqc_files = multiqc_files.mix(preseq_lc_extrap.lc_extrap.map { _meta, file -> file }).mix(preseq_lc_extrap.log.map{ _meta, file -> file })
+    //preseq_lc_extrap = PRESEQ_LCEXTRAP(ch_markduplicates_bam)
+    //versions = versions.mix(preseq_lc_extrap.versions)
+    //multiqc_files = multiqc_files.mix(preseq_lc_extrap.lc_extrap.map { _meta, file -> file }).mix(preseq_lc_extrap.log.map{ _meta, file -> file })
 
     // Samtools stats on final BAMs
     samstats_input = ch_markduplicates_bam.join(ch_markduplicates_bai).map { meta, bam, bai -> tuple(meta, bam, bai) }

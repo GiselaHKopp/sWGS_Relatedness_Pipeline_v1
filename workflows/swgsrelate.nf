@@ -9,11 +9,12 @@ include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pi
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
-include { PREPARE_GENOME         } from '../subworkflows/local/prepare_genome'
-include { PREPARE_INTERVALS      } from '../subworkflows/local/prepare_intervals'
-include { PREPROCESS             } from '../subworkflows/local/preprocess'
-include { CALL_VARIANTS_GATK     } from '../subworkflows/local/call_variants_gatk'
-include { FILTER_VARIANTS        } from '../subworkflows/local/filter_variants'
+include { BASE_QUALITY_SCORE_RECALIBRATION } from '../subworkflows/local/base_quality_score_recalibration'
+include { PREPARE_GENOME                   } from '../subworkflows/local/prepare_genome'
+include { PREPARE_INTERVALS                } from '../subworkflows/local/prepare_intervals'
+include { PREPROCESS                       } from '../subworkflows/local/preprocess'
+include { CALL_VARIANTS_GATK               } from '../subworkflows/local/call_variants_gatk'
+include { FILTER_VARIANTS                  } from '../subworkflows/local/filter_variants'
 
 
 /*
@@ -100,6 +101,23 @@ workflow SWGSRELATE {
         )
         ch_versions = ch_versions.mix(FILTER_VARIANTS.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(FILTER_VARIANTS.out.multiqc_files)
+    }
+    if(params.stages.contains('base_quality_score_recalibration')) {
+        //
+        // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION
+        //
+        BASE_QUALITY_SCORE_RECALIBRATION(
+            ch_fasta,
+            ch_fai,
+            ch_dict,
+            ch_intervals_split,
+            ch_bam,
+            ch_bai,
+            CALL_VARIANTS_GATK.out.vcf,
+            CALL_VARIANTS_GATK.out.tbi
+        )
+        ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
     }
 
     //

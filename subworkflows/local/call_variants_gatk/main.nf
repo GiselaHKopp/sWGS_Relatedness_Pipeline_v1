@@ -29,7 +29,7 @@ workflow CALL_VARIANTS_GATK {
     multiqc_files = channel.empty()
 
     // Combine BAM with intervals (scatter)
-    ch_inputs = bam.join(bai)
+    ch_bam = bam.join(bai)
     .combine(intervals)
     .map { bam_meta, bamfile, baifile, interval_meta, interval_file, _num_intervals ->
         // Construct new ID: sampleID_intervalName
@@ -42,7 +42,7 @@ workflow CALL_VARIANTS_GATK {
     }
 
     // Run GATK HaplotypeCaller
-    GATK4_HAPLOTYPECALLER(ch_inputs, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
+    GATK4_HAPLOTYPECALLER(ch_bam, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_HAPLOTYPECALLER.out.versions)
 
     // Prepare for GenomicsDBImport (scatter)
