@@ -3,7 +3,7 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-//include { GATK4_ANALYZECOVARIATES                    } from '../../../modules/nf-core/gatk4/analyzecovariates'
+include { GATK4_ANALYZECOVARIATES                    } from '../../../modules/local/gatk4/analyzecovariates'
 include { GATK4_APPLYBQSR                            } from '../../../modules/nf-core/gatk4/applybqsr'
 include { SAMTOOLS_INDEX                             } from '../../../modules/nf-core/samtools/index/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_SCATTERED } from '../../../modules/nf-core/samtools/index/main'
@@ -82,7 +82,10 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     ch_cram_second_pass = GATK4_APPLYBQSR.out.cram.join(SAMTOOLS_INDEX_SCATTERED.out.crai)
     .combine(intervals)
     .map { cram_meta, cram_file, crai_file, _interval_meta, interval_file, _num_intervals ->
-        tuple(cram_meta, cram_file, crai_file, interval_file)
+        // Change id to get distinct filenames
+        def meta = cram_meta.clone()
+        meta.id = "${cram_meta.id}.after"
+        tuple(meta, cram_file, crai_file, interval_file)
     }
 
     // Run BaseRecalibrator (second pass, for quality control)
@@ -94,6 +97,22 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         vcf.map{ _meta, files -> [['id' : 'known_sites'], files]},
         tbi.map{ _meta, files -> [['id' : 'known_sites'], files]}
     )
+
+    CRAM_BASERECALIBRATOR_SECOND_PASS.out.ch_table_bqsr.view()
+    ch_bqsr_first = CRAM_BASERECALIBRATOR.out.ch_table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
+    ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.ch_table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
+    ch_bqsr_tables = ch_bqsr_first.join(ch_bqsr_second).map { _key, first, second ->
+        def meta = first[0]
+        def table_before = first[1]
+        def table_after  = second[1]
+
+        tuple(meta, table_before, table_after)
+    }.dump(tag: 'ch_bqsr_tables')
+
+    // Run AnalyzeCovariates
+    GATK4_ANALYZECOVARIATES(ch_bqsr_tables)
+    versions = versions.mix(GATK4_ANALYZECOVARIATES.out.versions)
+    multiqc_files = multiqc_files.mix(GATK4_ANALYZECOVARIATES.out.plots.map{ _meta, file -> file })
 
     // Merge recalibrated CRAMs if needed
     ch_cram_branch = GATK4_APPLYBQSR.out.cram.map{ meta, table -> [ groupKey(meta, meta.num_intervals), table ] }.groupTuple()
