@@ -21,31 +21,31 @@ workflow CALL_VARIANTS_GATK {
     fai         // tuple(meta, path_to_fasta.fai)                       e.g. [ id: 'ref' ], ref.fasta.fai
     dict        // tuple(meta, path_to_dict)                            e.g. [ id: 'ref' ], ref.dict
     intervals   // tuple(meta, path_to_intervals, number_of_intervals)  e.g. [[ id: 'ref', interval_name:'scaffold'], intervals.bed, number_of_intervals]
-    bam         // tuple(meta, path_to_bam)                             e.g. [ id: 'sample1' ], sample1.bam
-    bai         // tuple(meta, path_to_bai)                             e.g. [ id: 'sample1' ], sample1.bam.bai
+    cram        // tuple(meta, path_to_cram)                            e.g. [ id: 'sample1' ], sample1.cram
+    crai        // tuple(meta, path_to_crai)                            e.g. [ id: 'sample1' ], sample1.cram.crai
 
     main:
     versions = channel.empty()
     multiqc_files = channel.empty()
 
-    // Combine BAM with intervals (scatter)
-    ch_bam = bam.join(bai)
+    // Combine CRAM with CRAI and intervals
+    ch_cram = cram.join(crai)
     .combine(intervals)
-    .map { bam_meta, bamfile, baifile, interval_meta, interval_file, _num_intervals ->
+    .map { cram_meta, cram_file, crai_file, interval_meta, interval_file, _num_intervals ->
         // Construct new ID: sampleID_intervalName
-        def new_id = "${bam_meta.id}_${interval_meta.interval_name}"
+        def new_id = "${cram_meta.id}_${interval_meta.interval_name}"
 
         // Merge metadata and overwrite id
-        def meta = bam_meta + interval_meta + [ id: new_id ]
+        def meta = cram_meta + interval_meta + [ id: new_id ]
 
-        tuple(meta, bamfile, baifile, interval_file, [])
+        tuple(meta, cram_file, crai_file, interval_file, [])
     }
 
     // Run GATK HaplotypeCaller
-    GATK4_HAPLOTYPECALLER(ch_bam, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
+    GATK4_HAPLOTYPECALLER(ch_cram, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_HAPLOTYPECALLER.out.versions)
 
-    // Prepare for GenomicsDBImport (scatter)
+    // Prepare for GenomicsDBImport
     ch_gvcfs = GATK4_HAPLOTYPECALLER.out.vcf
         .join(GATK4_HAPLOTYPECALLER.out.tbi)
         .map { meta, vcf, tbi -> tuple(meta.interval_name, vcf, tbi) }

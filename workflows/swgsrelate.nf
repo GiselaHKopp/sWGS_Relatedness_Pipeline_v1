@@ -42,34 +42,33 @@ workflow SWGSRELATE {
         .collect()
     : channel.empty()
 
+    //
+    // SUBWORKFLOW: PREPARE_GENOME
+    //
+    PREPARE_GENOME(ch_fasta)
+    ch_fai = PREPARE_GENOME.out.fai
+    ch_dict = PREPARE_GENOME.out.dict
+    ch_versions = ch_versions.mix(PREPARE_GENOME.out.versions)
+    //
+    // SUBWORKFLOW: PREPARE_INTERVALS
+    //
+    PREPARE_INTERVALS(ch_fai)
+    ch_intervals_split = PREPARE_INTERVALS.out.intervals_split
+    ch_versions = ch_versions.mix(PREPARE_INTERVALS.out.versions)
 
     if(params.stages.contains('preprocess')) {
         //
-        // SUBWORKFLOW: PREPARE_GENOME
-        //
-        PREPARE_GENOME(ch_fasta)
-        ch_fai = PREPARE_GENOME.out.fai
-        ch_dict = PREPARE_GENOME.out.dict
-        ch_versions = ch_versions.mix(PREPARE_GENOME.out.versions)
-        //
-        // SUBWORKFLOW: PREPARE_INTERVALS
-        //
-        PREPARE_INTERVALS(ch_fai)
-        ch_intervals_combined = PREPARE_INTERVALS.out.intervals_combined
-        ch_intervals_split = PREPARE_INTERVALS.out.intervals_split
-        ch_versions = ch_versions.mix(PREPARE_INTERVALS.out.versions)
-        //
         // SUBWORKFLOW: PREPROCESS
         //
-        ch_preprocessed = PREPROCESS(samplesheet, ch_fasta, ch_fai, ch_dict)
-        ch_bam = ch_preprocessed.bam
-        ch_bai = ch_preprocessed.bai
+        ch_preprocessed = PREPROCESS(samplesheet, ch_fasta, ch_fai)
+        ch_cram = ch_preprocessed.cram
+        ch_crai = ch_preprocessed.crai
         ch_versions = ch_versions.mix(ch_preprocessed.versions)
         ch_multiqc_files = ch_multiqc_files.mix(ch_preprocessed.multiqc_files)
     } else {
         // TODO: Load BAMs from samplesheet without preprocessing
-        ch_bam = channel.empty()
-        ch_bai = channel.empty()
+        ch_cram = channel.empty()
+        ch_crai = channel.empty()
         ch_fai = channel.empty()
         ch_dict = channel.empty()
     }
@@ -83,8 +82,8 @@ workflow SWGSRELATE {
             ch_fai,
             ch_dict,
             ch_intervals_split,
-            ch_bam,
-            ch_bai
+            ch_cram,
+            ch_crai
         )
         ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
@@ -111,8 +110,8 @@ workflow SWGSRELATE {
             ch_fai,
             ch_dict,
             ch_intervals_split,
-            ch_bam,
-            ch_bai,
+            ch_cram,
+            ch_crai,
             CALL_VARIANTS_GATK.out.vcf,
             CALL_VARIANTS_GATK.out.tbi
         )

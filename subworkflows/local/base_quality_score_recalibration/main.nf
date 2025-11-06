@@ -21,8 +21,8 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     fai
     dict
     intervals
-    bam
-    bai
+    cram
+    crai
     vcf
     tbi
 
@@ -30,22 +30,22 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     versions = channel.empty()
     multiqc_files = channel.empty()
 
-    // Combine BAM with intervals (scatter)
-    ch_bam = bam.join(bai)
+    // Combine CRAM with intervals (scatter)
+    ch_cram = cram.join(crai)
     .combine(intervals)
-    .map { bam_meta, bam_file, bai_file, interval_meta, interval_file, num_intervals ->
+    .map { cram_meta, cram_file, crai_file, interval_meta, interval_file, num_intervals ->
         // Construct new ID: sampleID_intervalName
-        def new_id = "${bam_meta.id}_${interval_meta.interval_name}"
+        def new_id = "${cram_meta.id}_${interval_meta.interval_name}"
 
         // Merge metadata and overwrite id
-        def meta = bam_meta + interval_meta + [ id: new_id ] + [ num_intervals: num_intervals ]
+        def meta = cram_meta + interval_meta + [ id: new_id ] + [ num_intervals: num_intervals ]
 
-        tuple(meta, bam_file, bai_file, interval_file)
+        tuple(meta, cram_file, crai_file, interval_file)
     }
 
     // Run BaseRecalibrator
     GATK4_BASERECALIBRATOR(
-        ch_bam,
+        ch_cram,
         fasta,
         fai,
         dict,
@@ -79,31 +79,32 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         // Remove no longer necessary field: num_intervals
         .map{ meta, table -> [ meta - meta.subMap('num_intervals'), table ] }.dump(tag: 'Final BQSR Tables')
 
-    // Combine BAM with BQSR table
-    ch_bam_with_table = ch_bam.combine(ch_table_bqsr).dump(tag: 'ch_bam.combine(ch_table_bqsr)')
-        .map{ meta, bam_file, bai_file, interval_file, _meta_table, bqsr_table ->
-            tuple( meta, bam_file, bai_file, bqsr_table, interval_file )
-        }.dump(tag: 'BQSR Input BAM with BQSR Table')
+    // Combine CRAM with BQSR table
+    ch_cram_with_table = ch_cram.combine(ch_table_bqsr).dump(tag: 'ch_cram.combine(ch_table_bqsr)')
+        .map{ meta, cram_file, crai_file, interval_file, _meta_table, bqsr_table ->
+            tuple( meta, cram_file, crai_file, bqsr_table, interval_file )
+        }.dump(tag: 'BQSR Input CRAM with BQSR Table')
 
     // Run ApplyBQSR
     GATK4_APPLYBQSR(
-        ch_bam_with_table,
+        ch_cram_with_table,
         fasta.map { _meta, fasta_file -> [fasta_file] },
         fai.map { _meta, fai_file -> [fai_file] },
         dict.map { _meta, dict_file -> [dict_file] },
     )
     versions = versions.mix(GATK4_APPLYBQSR.out.versions)
 
-    // Merge recalibrated BAMs if needed
-    ch_bam_branch = GATK4_APPLYBQSR.out.bam.map{ meta, table -> [ groupKey(meta, meta.num_intervals), table ] }.groupTuple()
-        .dump(tag: 'Recalibrated BAMs, joined with BAIs')
+    // Merge recalibrated CRAMs if needed
+    ch_cram_branch = GATK4_APPLYBQSR.out.cram.map{ meta, table -> [ groupKey(meta, meta.num_intervals), table ] }.groupTuple()
+        .dump(tag: 'Recalibrated CRAMs, joined with BAIs')
         .branch { tuple ->
             single:   tuple[0].num_intervals == 1
             multiple: tuple[0].num_intervals > 1
         }
 
+    // Merge CRAMs if multiple intervals
     SAMTOOLS_MERGE(
-        ch_bam_branch.multiple,
+        ch_cram_branch.multiple,
         fasta,
         fai,
         [[id: 'no_gzi'],[]]
@@ -111,15 +112,15 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     versions = versions.mix(SAMTOOLS_MERGE.out.versions)
 
     // Mix intervals and no_intervals channels together
-    ch_recalibrated_bam = SAMTOOLS_MERGE.out.bam.mix(ch_bam_branch.single)
+    ch_recalibrated_cram = SAMTOOLS_MERGE.out.cram.mix(ch_cram_branch.single)
 
-    // Index bam
-    SAMTOOLS_INDEX(ch_recalibrated_bam)
+    // Index CRAM
+    SAMTOOLS_INDEX(ch_recalibrated_cram)
     versions = versions.mix(SAMTOOLS_INDEX.out.versions)
 
     emit:
-    recalibrated_bam = ch_recalibrated_bam
-    recalibrated_bai = SAMTOOLS_INDEX.out.bai
+    recalibrated_cram = ch_recalibrated_cram
+    recalibrated_crai = SAMTOOLS_INDEX.out.crai
     multiqc_files
     versions
 }

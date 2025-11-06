@@ -8,7 +8,6 @@ include { BWAMEM2_MEM                    } from '../../../modules/nf-core/bwamem
 include { FASTP                          } from '../../../modules/nf-core/fastp'
 include { GATK4_ADDORREPLACEREADGROUPS   } from '../../../modules/nf-core/gatk4/addorreplacereadgroups'
 include { GATK4_MARKDUPLICATES           } from '../../../modules/nf-core/gatk4/markduplicates'
-include { GATK4SPARK_MARKDUPLICATES      } from '../../../modules/nf-core/gatk4spark/markduplicates'
 include { MOSDEPTH                       } from '../../../modules/nf-core/mosdepth'
 include { PRESEQ_CCURVE                  } from '../../../modules/nf-core/preseq/ccurve'
 include { PRESEQ_LCEXTRAP                } from '../../../modules/nf-core/preseq/lcextrap'
@@ -25,7 +24,6 @@ workflow PREPROCESS {
     samplesheet
     fasta
     fai
-    dict
 
     main:
     versions = channel.empty()
@@ -35,70 +33,62 @@ workflow PREPROCESS {
     samplesheet.branch { row ->
         spring: row[1].every { file -> file.getName().endsWith('.spring') }
         fastq : row[1].every { file -> file.getName().endsWith('.fastq') || file.getName().endsWith('.fastq.gz') || file.getName().endsWith('.fq.gz') }
-    }.set{ input_branches }
+    }.set{ ch_input_branches }
 
-    // Decompress SPRING → FASTQ pairs
-    spring_pairs = SPRING_DECOMPRESS(input_branches.spring, false)
-    versions = versions.mix(spring_pairs.versions)
+    // Decompress SPRING to FASTQ pairs
+    SPRING_DECOMPRESS(ch_input_branches.spring, false)
+    versions = versions.mix(SPRING_DECOMPRESS.out.versions)
 
     // Merge with normal FASTQs into one unified channel
-    merged_fastqs = input_branches.fastq.mix(spring_pairs.fastq)
+    merged_fastqs = ch_input_branches.fastq.mix(SPRING_DECOMPRESS.out.fastq)
 
-    // Trim & QC with FASTP
-    fastp_input = merged_fastqs.map { meta, reads -> tuple(meta, reads, []) }
-    fastp_results = FASTP(fastp_input, false, false, false)
-    versions = versions.mix(fastp_results.versions)
-    multiqc_files = fastp_results.html.map { _meta, file -> file }.mix(fastp_results.json.map { _meta, file -> file })
+    // Trim and QC with FASTP
+    ch_fastp_input = merged_fastqs.map { meta, reads -> tuple(meta, reads, []) }
+    FASTP(ch_fastp_input, false, false, false)
+    versions = versions.mix(FASTP.out.versions)
+    multiqc_files = FASTP.out.html.map { _meta, file -> file }.mix(FASTP.out.json.map { _meta, file -> file })
 
     // Build the BWA index from the provided FASTA
-    bwa_index = BWAMEM2_INDEX(fasta)
-    versions = versions.mix(bwa_index.versions)
+    BWAMEM2_INDEX(fasta)
+    versions = versions.mix(BWAMEM2_INDEX.out.versions)
 
     // Map to reference
-    bwa_results = BWAMEM2_MEM(fastp_results.reads, bwa_index.index, fasta, true)
-    versions = versions.mix(bwa_results.versions)
+    BWAMEM2_MEM(FASTP.out.reads, BWAMEM2_INDEX.out.index, fasta, true)
+    versions = versions.mix(BWAMEM2_MEM.out.versions)
 
     // Add read groups
-    rg_bams = GATK4_ADDORREPLACEREADGROUPS(bwa_results.bam, fasta, fai)
-    versions = versions.mix(rg_bams.versions)
+    GATK4_ADDORREPLACEREADGROUPS(BWAMEM2_MEM.out.bam, fasta, fai)
+    versions = versions.mix(GATK4_ADDORREPLACEREADGROUPS.out.versions)
 
     // Mark duplicates
-    if(params.use_gatk_spark) {
-        markduplicates_results = GATK4SPARK_MARKDUPLICATES(rg_bams.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] }, dict.map{ tuple -> tuple[1] })
-        ch_markduplicates_bam = markduplicates_results.output
-        ch_markduplicates_bai = markduplicates_results.bam_index
-    } else {
-        markduplicates_results = GATK4_MARKDUPLICATES(rg_bams.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
-        ch_markduplicates_bam = markduplicates_results.bam
-        ch_markduplicates_bai = markduplicates_results.bai
-    }
+    markduplicates_results = GATK4_MARKDUPLICATES(GATK4_ADDORREPLACEREADGROUPS.out.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
     versions = versions.mix(markduplicates_results.versions)
-    multiqc_files = multiqc_files.mix(markduplicates_results.metrics.map { tuple -> tuple[1] })
+    multiqc_files = multiqc_files.mix(GATK4_MARKDUPLICATES.out.metrics.map { tuple -> tuple[1] })
 
     // Preseq analyses
-    //preseq_c_curve = PRESEQ_CCURVE(ch_markduplicates_bam)
-    //versions = versions.mix(preseq_c_curve.versions)
-    //multiqc_files = multiqc_files.mix(preseq_c_curve.c_curve.map { _meta, file -> file }).mix(preseq_c_curve.log.map{ _meta, file -> file })
+    PRESEQ_CCURVE(GATK4_MARKDUPLICATES.out.cram)
+    versions = versions.mix(PRESEQ_CCURVE.out.versions)
+    multiqc_files = multiqc_files.mix(PRESEQ_CCURVE.out.c_curve.map { _meta, file -> file }).mix(PRESEQ_CCURVE.out.log.map{ _meta, file -> file })
 
-    //preseq_lc_extrap = PRESEQ_LCEXTRAP(ch_markduplicates_bam)
-    //versions = versions.mix(preseq_lc_extrap.versions)
-    //multiqc_files = multiqc_files.mix(preseq_lc_extrap.lc_extrap.map { _meta, file -> file }).mix(preseq_lc_extrap.log.map{ _meta, file -> file })
+    PRESEQ_LCEXTRAP(GATK4_MARKDUPLICATES.out.cram)
+    versions = versions.mix(PRESEQ_LCEXTRAP.out.versions)
+    multiqc_files = multiqc_files.mix(PRESEQ_LCEXTRAP.out.lc_extrap.map { _meta, file -> file }).mix(PRESEQ_LCEXTRAP.out.log.map{ _meta, file -> file })
 
-    // Samtools stats on final BAMs
-    samstats_input = ch_markduplicates_bam.join(ch_markduplicates_bai).map { meta, bam, bai -> tuple(meta, bam, bai) }
-    samstats_results = SAMTOOLS_STATS(samstats_input, fasta)
-    versions = versions.mix(samstats_results.versions)
-    multiqc_files = multiqc_files.mix(samstats_results.stats.map { tuple -> tuple[1] })
+    // Samtools stats on final CRAMs
+    ch_samstats_input = GATK4_MARKDUPLICATES.out.cram.join(GATK4_MARKDUPLICATES.out.crai).map { meta, cram, crai -> tuple(meta, cram, crai) }
+    SAMTOOLS_STATS(ch_samstats_input, fasta)
+    versions = versions.mix(SAMTOOLS_STATS.out.versions)
+    multiqc_files = multiqc_files.mix(SAMTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
 
     // Coverage calculation with mosdepth
-    mosdepth_input = ch_markduplicates_bam.join(ch_markduplicates_bai).map { meta, bam, bai -> tuple(meta, bam, bai, []) }
-    mosdepth_results = MOSDEPTH(mosdepth_input, fasta)
-    versions = versions.mix(mosdepth_results.versions)
-    multiqc_files = multiqc_files.mix(mosdepth_results.global_txt.map { _meta, file -> file }).mix(mosdepth_results.summary_txt.map { _meta, file -> file })
+    ch_mosdepth_input = GATK4_MARKDUPLICATES.out.cram.join(GATK4_MARKDUPLICATES.out.crai).map { meta, cram, crai -> tuple(meta, cram, crai, []) }
+    MOSDEPTH(ch_mosdepth_input, fasta)
+    versions = versions.mix(MOSDEPTH.out.versions)
+    multiqc_files = multiqc_files.mix(MOSDEPTH.out.global_txt.map { _meta, file -> file }).mix(MOSDEPTH.out.summary_txt.map { _meta, file -> file })
 
     emit:
-    bam = ch_markduplicates_bam // val(meta), path(bam)
-    bai = ch_markduplicates_bai // val(meta), path(bai)
+    cram = GATK4_MARKDUPLICATES.out.cram // val(meta), path(cram)
+    crai = GATK4_MARKDUPLICATES.out.crai // val(meta), path(crai)
     multiqc_files
     versions
 }
