@@ -13,6 +13,7 @@ include { BASE_QUALITY_SCORE_RECALIBRATION } from '../subworkflows/local/base_qu
 include { PREPARE_GENOME                   } from '../subworkflows/local/prepare_genome'
 include { PREPARE_INTERVALS                } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS                       } from '../subworkflows/local/preprocess'
+include { CALL_VARIANTS_BCFTOOLS           } from '../subworkflows/local/call_variants_bcftools'
 include { CALL_VARIANTS_GATK               } from '../subworkflows/local/call_variants_gatk'
 include { FILTER_VARIANTS                  } from '../subworkflows/local/filter_variants'
 
@@ -117,6 +118,20 @@ workflow SWGSRELATE {
         )
         ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
+    }
+    if(params.stages.contains('variant_calling')) {
+        //
+        // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
+        //
+        CALL_VARIANTS_BCFTOOLS(
+            ch_fasta,
+            ch_fai,
+            ch_intervals_split,
+            ch_cram,
+            ch_crai
+        )
+        ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
     }
 
     //

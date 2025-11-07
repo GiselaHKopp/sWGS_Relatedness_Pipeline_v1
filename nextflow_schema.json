@@ -64,7 +64,7 @@
                             "preprocess",
                             "prepare_variant_set",
                             "base_quality_score_recalibration",
-                            "genotype_likelihood",
+                            "variant_calling",
                             "relatedness_estimation"
                         ]
                     },

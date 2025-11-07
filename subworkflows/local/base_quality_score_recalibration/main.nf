@@ -107,12 +107,11 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         def table_after  = second[1]
 
         tuple(meta, table_before, table_after)
-    }.dump(tag: 'ch_bqsr_tables')
+    }
 
     // Run AnalyzeCovariates
     GATK4_ANALYZECOVARIATES(ch_bqsr_tables)
     versions = versions.mix(GATK4_ANALYZECOVARIATES.out.versions)
-    multiqc_files = multiqc_files.mix(GATK4_ANALYZECOVARIATES.out.plots.map{ _meta, file -> file })
 
     // Merge recalibrated CRAMs if needed
     ch_cram_branch = GATK4_APPLYBQSR.out.cram.map{ meta, table -> [ groupKey(meta, meta.num_intervals), table ] }.groupTuple()
