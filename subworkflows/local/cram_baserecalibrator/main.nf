@@ -13,9 +13,9 @@ include { GATK4_GATHERBQSRREPORTS } from '../../../modules/nf-core/gatk4/gatherb
 */
 workflow CRAM_BASERECALIBRATOR {
     take:
-    fasta
-    fai
-    dict
+    fasta   // channel: [ meta, fasta]
+    fai     // channel: [ meta, fai]
+    dict    // channel: [ meta, dict]
     ch_cram // channel: [ meta, cram, crai, intervals ]
     vcf
     tbi
@@ -38,7 +38,7 @@ workflow CRAM_BASERECALIBRATOR {
     ch_table_to_merge = GATK4_BASERECALIBRATOR.out.table
         .map{ meta, table ->
             // Use sample name as key, ensure num_intervals is available
-            def key = meta.RGSM ?: meta.sample_id ?: meta.id.split('_')[0]
+            def key = meta.RGSM ?: meta.id.split('_')[0]
 
             // Remove interval_name from meta in order to group by sample only
             tuple(meta - meta.subMap('interval_name') + [ id: key ], table)

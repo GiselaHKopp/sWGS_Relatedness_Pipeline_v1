@@ -3,10 +3,8 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { BCFTOOLS_CALL    } from '../../../modules/nf-core/bcftools/call/main'
-include { BCFTOOLS_CONCAT  } from '../../../modules/nf-core/bcftools/concat/main'
-include { BCFTOOLS_INDEX   } from '../../../modules/nf-core/bcftools/index/main'
 include { BCFTOOLS_MPILEUP } from '../../../modules/nf-core/bcftools/mpileup/main'
+include { GATK4_MERGEVCFS  } from '../../../modules/nf-core/gatk4/mergevcfs'
 include { SAMTOOLS_CONVERT } from '../../../modules/nf-core/samtools/convert/main'
 
 /*
@@ -16,11 +14,12 @@ include { SAMTOOLS_CONVERT } from '../../../modules/nf-core/samtools/convert/mai
 */
 workflow CALL_VARIANTS_BCFTOOLS {
     take:
-    fasta       // tuple(meta2, path_to_fasta)                          e.g. [ id: 'ref' ], ref.fasta
-    fai         // tuple(meta, path_to_fasta.fai)                       e.g. [ id: 'ref' ], ref.fasta.fai
-    intervals   // tuple(meta, path_to_intervals, number_of_intervals)  e.g. [[ id: 'ref', interval_name:'scaffold'], intervals.bed, number_of_intervals]
-    cram        // tuple(meta, path_to_cram)                            e.g. [ id: 'sample1' ], sample1.cram
-    crai        // tuple(meta, path_to_crai)                            e.g. [ id: 'sample1' ], sample1.cram.crai
+    fasta       // channel: [ meta, fasta]
+    fai         // channel: [ meta, fai]
+    dict        // channel: [ meta, dict]
+    intervals   // channel: [ meta, intervals, number_of_intervals]
+    cram        // channel: [ meta, cram]
+    crai        // channel: [ meta, crai]
 
     main:
     versions = channel.empty()
@@ -45,28 +44,34 @@ workflow CALL_VARIANTS_BCFTOOLS {
     }
 
     // Run Bcftools mpileup
-    BCFTOOLS_MPILEUP(ch_bam_bai_intervals, fasta, false)
+    keep_bcftools_mpileup = false
+    BCFTOOLS_MPILEUP(ch_bam_bai_intervals, fasta, keep_bcftools_mpileup)
     versions = versions.mix(BCFTOOLS_MPILEUP.out.versions)
     multiqc_files = multiqc_files.mix(BCFTOOLS_MPILEUP.out.stats.map { tuple -> tuple[1] })
 
-    // Run Bcftools call
-    ch_vcf_tbi_call = BCFTOOLS_MPILEUP.out.vcf.join(BCFTOOLS_MPILEUP.out.tbi).dump(tag: 'ch_vcf_tbi_call')
-    BCFTOOLS_CALL(ch_vcf_tbi_call, channel.empty(), channel.empty(), channel.empty())
-    versions = versions.mix(BCFTOOLS_CALL.out.versions)
+    // Figuring out if there is one or more vcf(s) from the same sample
+    vcf_mpileup = BCFTOOLS_MPILEUP.out.vcf.branch { tuple ->
+        single: tuple[0].num_intervals > 1
+        multiple: tuple[0].num_intervals <= 1
+    }
 
-    // Run Bcftools concat
-    ch_vcf_tbi_concat = BCFTOOLS_CALL.out.vcf.join(BCFTOOLS_CALL.out.tbi)
-        .collect().dump(tag: 'ch_vcf_tbi_concat')
-    BCFTOOLS_CONCAT(ch_vcf_tbi_concat)
-    versions = versions.mix(BCFTOOLS_CONCAT.out.versions)
+    // Merge VCF
+    vcf_to_merge = vcf_mpileup.single.map { meta, vcf -> [groupKey(meta, meta.num_intervals), vcf] }.groupTuple()
+    GATK4_MERGEVCFS(vcf_to_merge, dict)
 
-    // Run Bcftools index
-    BCFTOOLS_INDEX(BCFTOOLS_CONCAT.out.vcf)
-    versions = versions.mix(BCFTOOLS_INDEX.out.versions)
+    // Mix single and multiple channels together
+    vcf = GATK4_MERGEVCFS.out.vcf
+        .mix(vcf_mpileup.multiple)
+        .map { meta, vcf -> [meta - meta.subMap('num_intervals') + [variantcaller: 'bcftools'], vcf] }
+
+    // Merge TBI
+    tbi = GATK4_MERGEVCFS.out.tbi
+        .mix(BCFTOOLS_MPILEUP.out.tbi.filter { meta, _tbi -> meta.num_intervals <= 1 })
+        .map { meta, tbi -> [meta - meta.subMap('num_intervals') + [variantcaller: 'bcftools'], tbi] }
 
     emit:
-    vcf = BCFTOOLS_CONCAT.out.vcf
-    tbi = BCFTOOLS_INDEX.out.tbi
+    vcf
+    tbi
     multiqc_files
     versions
 }

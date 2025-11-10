@@ -17,12 +17,12 @@ include { GATK4_MERGEVCFS        } from '../../../modules/nf-core/gatk4/mergevcf
 */
 workflow CALL_VARIANTS_GATK {
     take:
-    fasta       // tuple(meta2, path_to_fasta)                          e.g. [ id: 'ref' ], ref.fasta
-    fai         // tuple(meta, path_to_fasta.fai)                       e.g. [ id: 'ref' ], ref.fasta.fai
-    dict        // tuple(meta, path_to_dict)                            e.g. [ id: 'ref' ], ref.dict
-    intervals   // tuple(meta, path_to_intervals, number_of_intervals)  e.g. [[ id: 'ref', interval_name:'scaffold'], intervals.bed, number_of_intervals]
-    cram        // tuple(meta, path_to_cram)                            e.g. [ id: 'sample1' ], sample1.cram
-    crai        // tuple(meta, path_to_crai)                            e.g. [ id: 'sample1' ], sample1.cram.crai
+    fasta       // channel: [ meta, fasta]
+    fai         // channel: [ meta, fai]
+    dict        // channel: [ meta, dict]
+    intervals   // channel: [ meta, intervals, number_of_intervals]
+    cram        // channel: [ meta, cram]
+    crai        // channel: [ meta, crai]
 
     main:
     versions = channel.empty()
@@ -88,7 +88,7 @@ workflow CALL_VARIANTS_GATK {
     multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
     versions = versions.mix(BCFTOOLS_STATS.out.versions)
 
-    // Sort each scaffold VCF before merging
+    // Sort each interval VCF before merging
     GATK4_GENOTYPEGVCFS.out.vcf
         .map { meta, vcf ->
             def new_meta = meta + [ id: "${meta.id}.sorted" ]

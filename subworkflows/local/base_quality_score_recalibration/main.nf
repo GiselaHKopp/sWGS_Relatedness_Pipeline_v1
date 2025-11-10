@@ -19,14 +19,14 @@ include { CRAM_BASERECALIBRATOR as CRAM_BASERECALIBRATOR_SECOND_PASS } from '../
 */
 workflow BASE_QUALITY_SCORE_RECALIBRATION {
     take:
-    fasta
-    fai
-    dict
-    intervals
-    cram
-    crai
-    vcf
-    tbi
+    fasta       // channel: [ meta, fasta]
+    fai         // channel: [ meta, fai]
+    dict        // channel: [ meta, dict]
+    intervals   // channel: [ meta, intervals, number_of_intervals]
+    cram        // channel: [ meta, cram]
+    crai        // channel: [ meta, crai]
+    vcf         // channel: [ meta, vcf]
+    tbi         // channel: [ meta, tbi]
 
     main:
     versions = channel.empty()
@@ -98,7 +98,6 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         tbi.map{ _meta, files -> [['id' : 'known_sites'], files]}
     )
 
-    CRAM_BASERECALIBRATOR_SECOND_PASS.out.ch_table_bqsr.view()
     ch_bqsr_first = CRAM_BASERECALIBRATOR.out.ch_table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
     ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.ch_table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
     ch_bqsr_tables = ch_bqsr_first.join(ch_bqsr_second).map { _key, first, second ->
@@ -116,7 +115,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     // Merge recalibrated CRAMs if needed
     ch_cram_branch = GATK4_APPLYBQSR.out.cram.map{ meta, table -> [ groupKey(meta, meta.num_intervals), table ] }.groupTuple()
         .branch { tuple ->
-            single:   tuple[0].num_intervals == 1
+            single:   tuple[0].num_intervals <= 1
             multiple: tuple[0].num_intervals > 1
         }
 
@@ -131,6 +130,13 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
 
     // Mix intervals and no_intervals channels together
     ch_recalibrated_cram = SAMTOOLS_MERGE.out.cram.mix(ch_cram_branch.single)
+        .map{ meta, cram_file ->
+            // Use sample name as key, ensure num_intervals is available
+            def key = meta.RGSM ?: meta.id.split('_')[0]
+
+            // Remove interval_name from meta in order to group by sample only
+            tuple(meta - meta.subMap('interval_name') - meta.subMap('num_intervals') + [ id: key ], cram_file)
+        }
 
     // Index CRAM
     SAMTOOLS_INDEX(ch_recalibrated_cram)

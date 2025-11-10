@@ -126,9 +126,10 @@ workflow SWGSRELATE {
         CALL_VARIANTS_BCFTOOLS(
             ch_fasta,
             ch_fai,
+            ch_dict,
             ch_intervals_split,
-            ch_cram,
-            ch_crai
+            BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram,
+            BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai
         )
         ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)

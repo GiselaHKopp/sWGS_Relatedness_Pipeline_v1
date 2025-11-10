@@ -14,11 +14,11 @@ include { GATK4_VARIANTFILTRATION } from '../../../modules/nf-core/gatk4/variant
 */
 workflow FILTER_VARIANTS {
     take:
-    fasta       // tuple(meta2, path_to_fasta)      e.g. [ id: 'ref' ], ref.fasta
-    fai         // tuple(meta, path_to_fasta.fai)   e.g. [ id: 'ref' ], ref.fasta.fai
-    dict        // tuple(meta, path_to_dict)        e.g. [ id: 'ref' ], ref.dict
-    vcf         // tuple(meta, path_to_vcf)         e.g. [ id: 'sample1' ], sample1.vcf
-    tbi         // tuple(meta, path_to_tbi)         e.g. [ id: 'sample1' ], sample1.vcf.tbi
+    fasta   // channel: [ meta, fasta]
+    fai     // channel: [ meta, fai
+    dict    // channel: [ meta, dict]
+    vcf     // channel: [ meta, vcf]
+    tbi     // channel: [ meta, tbi]
 
     main:
     // Collect software versions and QC reports

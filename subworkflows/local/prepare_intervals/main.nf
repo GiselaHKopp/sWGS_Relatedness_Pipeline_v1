@@ -13,7 +13,7 @@ include { SPLIT_INTERVALS         } from '../../../modules/local/splitintervals'
 */
 workflow PREPARE_INTERVALS {
     take:
-    fai // [meta, fasta.fai]
+    fai // channel: [ meta, fai]
 
     main:
     versions = channel.empty()

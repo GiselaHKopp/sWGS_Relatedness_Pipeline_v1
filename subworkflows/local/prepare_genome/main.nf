@@ -13,7 +13,7 @@ include { SAMTOOLS_FAIDX                 } from '../../../modules/nf-core/samtoo
 */
 workflow PREPARE_GENOME {
     take:
-    fasta
+    fasta   // channel: [ meta, fasta]
 
     main:
     versions = channel.empty()
