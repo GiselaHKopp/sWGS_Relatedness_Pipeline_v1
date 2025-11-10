@@ -10,7 +10,8 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
 include { BASE_QUALITY_SCORE_RECALIBRATION } from '../subworkflows/local/base_quality_score_recalibration'
-include { BOOTSTRAP_VARIANT_SET            } from '../subworkflows/local/bootstrap_variant_set'
+include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_1 } from '../subworkflows/local/bootstrap_variant_set'
+include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_2 } from '../subworkflows/local/bootstrap_variant_set'
 include { PREPARE_GENOME                   } from '../subworkflows/local/prepare_genome'
 include { PREPARE_INTERVALS                } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS                       } from '../subworkflows/local/preprocess'
@@ -76,11 +77,41 @@ workflow SWGSRELATE {
     }
 
     if(params.stages.contains('bootstrap_variant_set')) {
-        for( int i = 0; i < 1; i++ ) {
-            //
-            // SUBWORKFLOW: CALL_VARIANTS
-            //
-            BOOTSTRAP_VARIANT_SET(
+        //
+        // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 1
+        //
+        ch_cram.map { meta, cram_file ->
+            tuple( meta + ['bootstrapping_round': 1], cram_file ) }
+            .set { ch_cram }
+        ch_crai.map { meta, crai_file ->
+            tuple( meta + ['bootstrapping_round': 1], crai_file ) }
+            .set { ch_crai }
+        BOOTSTRAP_VARIANT_SET_1(
+            ch_fasta,
+            ch_fai,
+            ch_dict,
+            ch_intervals_split,
+            ch_cram,
+            ch_crai
+        )
+        ch_versions = ch_versions.mix(BOOTSTRAP_VARIANT_SET_1.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(BOOTSTRAP_VARIANT_SET_1.out.multiqc_files)
+        ch_cram = BOOTSTRAP_VARIANT_SET_1.out.cram
+        ch_crai = BOOTSTRAP_VARIANT_SET_1.out.crai
+        ch_vcf  = BOOTSTRAP_VARIANT_SET_1.out.vcf
+        ch_tbi  = BOOTSTRAP_VARIANT_SET_1.out.tbi
+
+        //
+        // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 2
+        //
+        ch_cram.map { meta, cram_file ->
+            tuple( meta + ['bootstrapping_round': 2], cram_file ) }
+            .set { ch_cram }
+        ch_crai.map { meta, crai_file ->
+            tuple( meta + ['bootstrapping_round': 2], crai_file ) }
+            .set { ch_crai }
+        if (params.bqsr_rounds > 1) {
+            BOOTSTRAP_VARIANT_SET_2(
                 ch_fasta,
                 ch_fai,
                 ch_dict,
@@ -88,13 +119,19 @@ workflow SWGSRELATE {
                 ch_cram,
                 ch_crai
             )
-            ch_versions = ch_versions.mix(BOOTSTRAP_VARIANT_SET.out.versions)
-            ch_multiqc_files = ch_multiqc_files.mix(BOOTSTRAP_VARIANT_SET.out.multiqc_files)
-            ch_cram = BOOTSTRAP_VARIANT_SET.out.cram
-            ch_crai = BOOTSTRAP_VARIANT_SET.out.crai
+            ch_cram = BOOTSTRAP_VARIANT_SET_2.out.cram
+            ch_crai = BOOTSTRAP_VARIANT_SET_2.out.crai
+            ch_vcf  = BOOTSTRAP_VARIANT_SET_2.out.vcf
+            ch_tbi  = BOOTSTRAP_VARIANT_SET_2.out.tbi
         }
-        ch_vcf  = BOOTSTRAP_VARIANT_SET.out.vcf
-        ch_tbi  = BOOTSTRAP_VARIANT_SET.out.tbi
+
+        // Remove bootstrapping metadata from CRAM channel
+        ch_cram.map { meta, cram_file ->
+            tuple( meta - meta.subMap('bootstrapping_round'), cram_file ) }
+            .set { ch_cram }
+        ch_crai.map { meta, crai_file ->
+            tuple( meta - meta.subMap('bootstrapping_round'), crai_file ) }
+            .set { ch_crai }
     }
     if(params.stages.contains('base_quality_score_recalibration')) {
         //

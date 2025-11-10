@@ -64,7 +64,7 @@ workflow PREPROCESS {
     markduplicates_results = GATK4_MARKDUPLICATES(GATK4_ADDORREPLACEREADGROUPS.out.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
     versions = versions.mix(markduplicates_results.versions)
     multiqc_files = multiqc_files.mix(GATK4_MARKDUPLICATES.out.metrics.map { tuple -> tuple[1] })
-
+/*
     // Preseq analyses
     PRESEQ_CCURVE(GATK4_MARKDUPLICATES.out.cram)
     versions = versions.mix(PRESEQ_CCURVE.out.versions)
@@ -73,7 +73,7 @@ workflow PREPROCESS {
     PRESEQ_LCEXTRAP(GATK4_MARKDUPLICATES.out.cram)
     versions = versions.mix(PRESEQ_LCEXTRAP.out.versions)
     multiqc_files = multiqc_files.mix(PRESEQ_LCEXTRAP.out.lc_extrap.map { _meta, file -> file }).mix(PRESEQ_LCEXTRAP.out.log.map{ _meta, file -> file })
-
+*/
     // Samtools stats on final CRAMs
     ch_samstats_input = GATK4_MARKDUPLICATES.out.cram.join(GATK4_MARKDUPLICATES.out.crai).map { meta, cram, crai -> tuple(meta, cram, crai) }
     SAMTOOLS_STATS(ch_samstats_input, fasta)

@@ -29,11 +29,12 @@ workflow CALL_VARIANTS_GATK {
     multiqc_files = channel.empty()
 
     // Combine CRAM with CRAI and intervals
+    cram.view()
     ch_cram = cram.join(crai)
     .combine(intervals)
     .map { cram_meta, cram_file, crai_file, interval_meta, interval_file, _num_intervals ->
         // Construct new ID: sampleID_intervalName
-        def new_id = "${cram_meta.id}_${interval_meta.interval_name}"
+        def new_id = "${cram_meta.id}_${interval_meta.interval_name}" + (cram_meta.bootstrapping_round ? "_${cram_meta.bootstrapping_round}" : "")
 
         // Merge metadata and overwrite id
         def meta = cram_meta + interval_meta + [ id: new_id ]
