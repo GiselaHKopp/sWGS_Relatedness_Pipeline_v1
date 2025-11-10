@@ -87,8 +87,8 @@ workflow PREPROCESS {
     multiqc_files = multiqc_files.mix(MOSDEPTH.out.global_txt.map { _meta, file -> file }).mix(MOSDEPTH.out.summary_txt.map { _meta, file -> file })
 
     emit:
-    cram = GATK4_MARKDUPLICATES.out.cram // val(meta), path(cram)
-    crai = GATK4_MARKDUPLICATES.out.crai // val(meta), path(crai)
+    cram = GATK4_MARKDUPLICATES.out.cram
+    crai = GATK4_MARKDUPLICATES.out.crai
     multiqc_files
     versions
 }

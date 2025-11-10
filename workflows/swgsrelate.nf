@@ -10,6 +10,7 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
 include { BASE_QUALITY_SCORE_RECALIBRATION } from '../subworkflows/local/base_quality_score_recalibration'
+include { BOOTSTRAP_VARIANT_SET            } from '../subworkflows/local/bootstrap_variant_set'
 include { PREPARE_GENOME                   } from '../subworkflows/local/prepare_genome'
 include { PREPARE_INTERVALS                } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS                       } from '../subworkflows/local/preprocess'
@@ -74,33 +75,26 @@ workflow SWGSRELATE {
         ch_dict = channel.empty()
     }
 
-    if(params.stages.contains('prepare_variant_set')) {
-        //
-        // SUBWORKFLOW: CALL_VARIANTS
-        //
-        CALL_VARIANTS_GATK(
-            ch_fasta,
-            ch_fai,
-            ch_dict,
-            ch_intervals_split,
-            ch_cram,
-            ch_crai
-        )
-        ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
-
-        //
-        // SUBWORKFLOW: FILTER_VARIANTS
-        //
-        FILTER_VARIANTS(
-            ch_fasta,
-            ch_fai,
-            ch_dict,
-            CALL_VARIANTS_GATK.out.vcf,
-            CALL_VARIANTS_GATK.out.tbi
-        )
-        ch_versions = ch_versions.mix(FILTER_VARIANTS.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(FILTER_VARIANTS.out.multiqc_files)
+    if(params.stages.contains('bootstrap_variant_set')) {
+        for( int i = 0; i < 1; i++ ) {
+            //
+            // SUBWORKFLOW: CALL_VARIANTS
+            //
+            BOOTSTRAP_VARIANT_SET(
+                ch_fasta,
+                ch_fai,
+                ch_dict,
+                ch_intervals_split,
+                ch_cram,
+                ch_crai
+            )
+            ch_versions = ch_versions.mix(BOOTSTRAP_VARIANT_SET.out.versions)
+            ch_multiqc_files = ch_multiqc_files.mix(BOOTSTRAP_VARIANT_SET.out.multiqc_files)
+            ch_cram = BOOTSTRAP_VARIANT_SET.out.cram
+            ch_crai = BOOTSTRAP_VARIANT_SET.out.crai
+        }
+        ch_vcf  = BOOTSTRAP_VARIANT_SET.out.vcf
+        ch_tbi  = BOOTSTRAP_VARIANT_SET.out.tbi
     }
     if(params.stages.contains('base_quality_score_recalibration')) {
         //
@@ -113,11 +107,13 @@ workflow SWGSRELATE {
             ch_intervals_split,
             ch_cram,
             ch_crai,
-            CALL_VARIANTS_GATK.out.vcf,
-            CALL_VARIANTS_GATK.out.tbi
+            ch_vcf,
+            ch_tbi
         )
         ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
+        ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.cram
+        ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.crai
     }
     if(params.stages.contains('variant_calling')) {
         //
@@ -128,8 +124,8 @@ workflow SWGSRELATE {
             ch_fai,
             ch_dict,
             ch_intervals_split,
-            BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram,
-            BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai
+            ch_cram,
+            ch_crai
         )
         ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)

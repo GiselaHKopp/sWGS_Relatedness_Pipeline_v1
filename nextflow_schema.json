@@ -62,7 +62,7 @@
                         "type": "string",
                         "enum": [
                             "preprocess",
-                            "prepare_variant_set",
+                            "bootstrap_variant_set",
                             "base_quality_score_recalibration",
                             "variant_calling",
                             "relatedness_estimation"
