@@ -7,6 +7,8 @@ include { BCFTOOLS_MPILEUP } from '../../../modules/nf-core/bcftools/mpileup/mai
 include { GATK4_MERGEVCFS  } from '../../../modules/nf-core/gatk4/mergevcfs'
 include { SAMTOOLS_CONVERT } from '../../../modules/nf-core/samtools/convert/main'
 
+include { COMBINE_CRAM_CRAI_INTERVALS } from '../combine_cram_crai_intervals'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN WORKFLOW
@@ -30,8 +32,9 @@ workflow CALL_VARIANTS_BCFTOOLS {
     SAMTOOLS_CONVERT(ch_cram_crai_to_convert, fasta, fai)
     versions = versions.mix(SAMTOOLS_CONVERT.out.versions)
 
+/*
     // Combine BAM with BAI and intervals
-    ch_bam_bai_intervals = SAMTOOLS_CONVERT.out.bam
+    ch_bam_intervals = SAMTOOLS_CONVERT.out.bam
     .combine(intervals)
     .map { bam_meta, bam_file, interval_meta, interval_file, _num_intervals ->
         // Construct new ID: sampleID_intervalName
@@ -42,10 +45,16 @@ workflow CALL_VARIANTS_BCFTOOLS {
 
         tuple(meta, bam_file, interval_file)
     }
+*/
+
+    // Combine BAM and intervals
+    COMBINE_CRAM_CRAI_INTERVALS(intervals, SAMTOOLS_CONVERT.out.bam, channel.empty())
+    ch_bam_intervals = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
+    ch_bam_intervals.view()
 
     // Run Bcftools mpileup
     keep_bcftools_mpileup = false
-    BCFTOOLS_MPILEUP(ch_bam_bai_intervals, fasta, keep_bcftools_mpileup)
+    BCFTOOLS_MPILEUP(ch_bam_intervals, fasta, keep_bcftools_mpileup)
     versions = versions.mix(BCFTOOLS_MPILEUP.out.versions)
     multiqc_files = multiqc_files.mix(BCFTOOLS_MPILEUP.out.stats.map { tuple -> tuple[1] })
 

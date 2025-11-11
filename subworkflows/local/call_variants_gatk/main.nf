@@ -10,6 +10,8 @@ include { GATK4_GENOTYPEGVCFS    } from '../../../modules/nf-core/gatk4/genotype
 include { GATK4_HAPLOTYPECALLER  } from '../../../modules/nf-core/gatk4/haplotypecaller'
 include { GATK4_MERGEVCFS        } from '../../../modules/nf-core/gatk4/mergevcfs'
 
+include { COMBINE_CRAM_CRAI_INTERVALS } from '../combine_cram_crai_intervals'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN WORKFLOW
@@ -29,21 +31,16 @@ workflow CALL_VARIANTS_GATK {
     multiqc_files = channel.empty()
 
     // Combine CRAM with CRAI and intervals
-    cram.view()
-    ch_cram = cram.join(crai)
-    .combine(intervals)
-    .map { cram_meta, cram_file, crai_file, interval_meta, interval_file, _num_intervals ->
-        // Construct new ID: sampleID_intervalName
-        def new_id = "${cram_meta.id}_${interval_meta.interval_name}" + (cram_meta.bootstrapping_round ? "_${cram_meta.bootstrapping_round}" : "")
+    COMBINE_CRAM_CRAI_INTERVALS(intervals, cram, crai)
 
-        // Merge metadata and overwrite id
-        def meta = cram_meta + interval_meta + [ id: new_id ]
-
-        tuple(meta, cram_file, crai_file, interval_file, [])
-    }
+    // Prepare HaplotypeCaller input
+    ch_haplotypecaller_input = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
+        .map { meta, cram_file, crai_file, interval_file ->
+            tuple(meta, cram_file, crai_file, interval_file, [])
+        }
 
     // Run GATK HaplotypeCaller
-    GATK4_HAPLOTYPECALLER(ch_cram, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
+    GATK4_HAPLOTYPECALLER(ch_haplotypecaller_input, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_HAPLOTYPECALLER.out.versions)
 
     // Prepare for GenomicsDBImport

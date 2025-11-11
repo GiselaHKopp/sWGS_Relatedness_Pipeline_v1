@@ -17,7 +17,6 @@ include { PREPARE_INTERVALS                } from '../subworkflows/local/prepare
 include { PREPROCESS                       } from '../subworkflows/local/preprocess'
 include { CALL_VARIANTS_BCFTOOLS           } from '../subworkflows/local/call_variants_bcftools'
 include { CALL_VARIANTS_GATK               } from '../subworkflows/local/call_variants_gatk'
-include { FILTER_VARIANTS                  } from '../subworkflows/local/filter_variants'
 
 
 /*
@@ -52,6 +51,7 @@ workflow SWGSRELATE {
     ch_fai = PREPARE_GENOME.out.fai
     ch_dict = PREPARE_GENOME.out.dict
     ch_versions = ch_versions.mix(PREPARE_GENOME.out.versions)
+
     //
     // SUBWORKFLOW: PREPARE_INTERVALS
     //
@@ -70,10 +70,10 @@ workflow SWGSRELATE {
         ch_multiqc_files = ch_multiqc_files.mix(ch_preprocessed.multiqc_files)
     } else {
         // TODO: Load BAMs from samplesheet without preprocessing
-        ch_cram = channel.empty()
-        ch_crai = channel.empty()
-        ch_fai = channel.empty()
-        ch_dict = channel.empty()
+        //ch_cram = channel.empty()
+        //ch_crai = channel.empty()
+        //ch_fai = channel.empty()
+        //ch_dict = channel.empty()
     }
 
     if(params.stages.contains('bootstrap_variant_set')) {
@@ -132,7 +132,14 @@ workflow SWGSRELATE {
         ch_crai.map { meta, crai_file ->
             tuple( meta - meta.subMap('bootstrapping_round'), crai_file ) }
             .set { ch_crai }
+    } else {
+        // TODO: Load existing variant set
+        //ch_cram = channel.empty()
+        //ch_crai = channel.empty()
+        //ch_vcf = channel.empty()
+        //ch_tbi = channel.empty()
     }
+
     if(params.stages.contains('base_quality_score_recalibration')) {
         //
         // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION
@@ -152,7 +159,22 @@ workflow SWGSRELATE {
         ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.cram
         ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.crai
     }
+
     if(params.stages.contains('variant_calling')) {
+        //
+        // SUBWORKFLOW: CALL_VARIANTS_GATK
+        //
+        CALL_VARIANTS_GATK(
+            ch_fasta,
+            ch_fai,
+            ch_dict,
+            ch_intervals_split,
+            ch_cram,
+            ch_crai
+        )
+        ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
+        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
+
         //
         // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
         //

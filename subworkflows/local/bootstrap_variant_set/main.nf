@@ -26,7 +26,7 @@ workflow BOOTSTRAP_VARIANT_SET {
     multiqc_files = channel.empty()
 
     //
-    // SUBWORKFLOW: CALL_VARIANTS
+    // SUBWORKFLOW: CALL_VARIANTS_GATK
     //
     CALL_VARIANTS_GATK(
         fasta,

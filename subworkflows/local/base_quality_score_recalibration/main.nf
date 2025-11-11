@@ -9,6 +9,7 @@ include { SAMTOOLS_INDEX                             } from '../../../modules/nf
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_SCATTERED } from '../../../modules/nf-core/samtools/index/main'
 include { SAMTOOLS_MERGE                             } from '../../../modules/nf-core/samtools/merge/main'
 
+include { COMBINE_CRAM_CRAI_INTERVALS                                } from '../combine_cram_crai_intervals'
 include { CRAM_BASERECALIBRATOR                                      } from '../cram_baserecalibrator'
 include { CRAM_BASERECALIBRATOR as CRAM_BASERECALIBRATOR_SECOND_PASS } from '../cram_baserecalibrator'
 
@@ -33,23 +34,14 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     multiqc_files = channel.empty()
 
     // Combine CRAM with intervals
-    ch_cram = cram.join(crai)
-    .combine(intervals)
-    .map { cram_meta, cram_file, crai_file, interval_meta, interval_file, num_intervals ->
-        // Construct new ID: sampleID_intervalName
-        def new_id = "${cram_meta.id}_${interval_meta.interval_name}" + (cram_meta.bootstrapping_round ? "_${cram_meta.bootstrapping_round}" : "")
+    COMBINE_CRAM_CRAI_INTERVALS(intervals, cram, crai)
 
-        // Merge metadata and overwrite id
-        def meta = cram_meta + interval_meta + [ id: new_id ] + [ num_intervals: num_intervals ]
-
-        tuple(meta, cram_file, crai_file, interval_file)
-    }
-
-    CRAM_BASERECALIBRATOR(fasta, fai, dict, ch_cram, vcf, tbi)
+    // Run BaseRecalibrator
+    CRAM_BASERECALIBRATOR(fasta, fai, dict, COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals, vcf, tbi)
     versions = versions.mix(CRAM_BASERECALIBRATOR.out.versions)
 
     // Combine CRAM with BQSR table
-    ch_cram_with_table = ch_cram
+    ch_cram_with_table = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
         .map { meta, cram_file, crai_file, interval_file ->
             def key = meta.RGSM
             tuple(key, meta, cram_file, crai_file, interval_file)
