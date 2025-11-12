@@ -28,7 +28,7 @@ include { CALL_VARIANTS_GATK               } from '../subworkflows/local/call_va
 workflow SWGSRELATE {
 
     take:
-    samplesheet // channel: samplesheet read in from --input
+    samplesheet // channel: [ meta, list(fastq) ]
 
     main:
     // Channel for collecting software versions

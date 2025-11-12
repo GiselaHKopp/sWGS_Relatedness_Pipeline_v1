@@ -21,7 +21,7 @@ include { SPRING_DECOMPRESS              } from '../../../modules/nf-core/spring
 */
 workflow PREPROCESS {
     take:
-    samplesheet // channel: samplesheet read in from --input
+    samplesheet // channel: [ meta, list(fastq) ]
     fasta       // channel: [ meta, fasta]
     fai         // channel: [ meta, fai]
 
