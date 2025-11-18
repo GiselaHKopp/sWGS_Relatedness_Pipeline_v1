@@ -36,7 +36,8 @@ workflow CALL_VARIANTS_GATK {
     // Prepare HaplotypeCaller input
     ch_haplotypecaller_input = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
         .map { meta, cram_file, crai_file, interval_file ->
-            tuple(meta, cram_file, crai_file, interval_file, [])
+            def new_meta = meta + [variantcaller: 'gatk']
+            tuple(new_meta, cram_file, crai_file, interval_file, [])
         }
 
     // Run GATK HaplotypeCaller
@@ -79,29 +80,30 @@ workflow CALL_VARIANTS_GATK {
     versions = versions.mix(GATK4_GENOTYPEGVCFS.out.versions)
 
     // Run BCFtools stats
-    GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi)
+    ch_vcf_tbi = GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi)
     .map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
-    .set { ch_vcf_tbi }
     BCFTOOLS_STATS(ch_vcf_tbi, [[id: 'no_regions'], []], [[id: 'no_targets'], []], [[id: 'no_samples'], []], [[id: 'no_exons'], []], fasta)
     multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
     versions = versions.mix(BCFTOOLS_STATS.out.versions)
 
     // Sort each interval VCF before merging
-    GATK4_GENOTYPEGVCFS.out.vcf
+    ch_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
         .map { meta, vcf ->
             def new_meta = meta + [ id: "${meta.id}.sorted" ]
-            tuple(new_meta, vcf) }
-        .set { ch_vcfs }
+            tuple(new_meta, vcf)
+        }
 
     BCFTOOLS_SORT(ch_vcfs)
     versions = versions.mix(BCFTOOLS_SORT.out.versions)
 
     // Collect sorted VCFs into one tuple for merging
-    BCFTOOLS_SORT.out.vcf
+    ch_merge_vcfs = BCFTOOLS_SORT.out.vcf
         .map { _meta, vcf -> vcf }
         .collect()
-        .map { vcfs -> tuple([id: "joint_merged"], vcfs) }
-        .set { ch_merge_vcfs }
+        .map { vcfs ->
+            def new_meta = [id: "joint_merged", variantcaller: 'gatk']
+            tuple(new_meta, vcfs)
+        }
 
     // Merge all intervals into one VCF
     GATK4_MERGEVCFS(ch_merge_vcfs, dict)
