@@ -47,7 +47,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
             tuple(key, meta, cram_file, crai_file, interval_file)
         }
         .join(
-            CRAM_BASERECALIBRATOR.out.ch_table_bqsr.map { meta, table ->
+            CRAM_BASERECALIBRATOR.out.table_bqsr.map { meta, table ->
                 def key = meta.RGSM
                 tuple(key, table)
             },
@@ -90,8 +90,8 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         tbi.map{ _meta, files -> [['id' : 'known_sites'], files]}
     )
 
-    ch_bqsr_first = CRAM_BASERECALIBRATOR.out.ch_table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
-    ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.ch_table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
+    ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
+    ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
     ch_bqsr_tables = ch_bqsr_first.join(ch_bqsr_second).map { _key, first, second ->
         def meta = first[0]
         def table_before = first[1]
