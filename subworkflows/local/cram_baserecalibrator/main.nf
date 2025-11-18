@@ -17,8 +17,8 @@ workflow CRAM_BASERECALIBRATOR {
     fai     // channel: [ meta, fai]
     dict    // channel: [ meta, dict]
     ch_cram // channel: [ meta, cram, crai, intervals ]
-    vcf
-    tbi
+    vcf     // channel: [ meta, vcf]
+    tbi     // channel: [ meta, tbi]
 
     main:
     versions = channel.empty()
@@ -45,10 +45,10 @@ workflow CRAM_BASERECALIBRATOR {
         }
         .groupTuple()
         .branch{ tuple ->
-        // Use meta.num_intervals to asses number of intervals
-        single:   tuple[0].num_intervals <= 1
-        multiple: tuple[0].num_intervals > 1
-    }
+            // Use meta.num_intervals to asses number of intervals
+            single:   tuple[0].num_intervals <= 1
+            multiple: tuple[0].num_intervals > 1
+        }
 
     // Only when using intervals
     GATK4_GATHERBQSRREPORTS(ch_table_to_merge.multiple)
