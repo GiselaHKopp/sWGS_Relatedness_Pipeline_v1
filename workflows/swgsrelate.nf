@@ -9,14 +9,16 @@ include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pi
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
-include { BASE_QUALITY_SCORE_RECALIBRATION } from '../subworkflows/local/base_quality_score_recalibration'
+include { BASE_QUALITY_SCORE_RECALIBRATION                 } from '../subworkflows/local/base_quality_score_recalibration'
 include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_1 } from '../subworkflows/local/bootstrap_variant_set'
 include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_2 } from '../subworkflows/local/bootstrap_variant_set'
-include { PREPARE_GENOME                   } from '../subworkflows/local/prepare_genome'
-include { PREPARE_INTERVALS                } from '../subworkflows/local/prepare_intervals'
-include { PREPROCESS                       } from '../subworkflows/local/preprocess'
-include { CALL_VARIANTS_BCFTOOLS           } from '../subworkflows/local/call_variants_bcftools'
-include { CALL_VARIANTS_GATK               } from '../subworkflows/local/call_variants_gatk'
+include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_3 } from '../subworkflows/local/bootstrap_variant_set'
+include { CALL_VARIANTS_BCFTOOLS                           } from '../subworkflows/local/call_variants_bcftools'
+include { CALL_VARIANTS_GATK                               } from '../subworkflows/local/call_variants_gatk'
+include { PREPARE_GENOME                                   } from '../subworkflows/local/prepare_genome'
+include { PREPARE_INTERVALS                                } from '../subworkflows/local/prepare_intervals'
+include { PREPROCESS                                       } from '../subworkflows/local/preprocess'
+include { VCF_INTERSECTION                                 } from '../subworkflows/local/vcf_intersection'
 
 
 /*
@@ -104,13 +106,13 @@ workflow SWGSRELATE {
         //
         // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 2
         //
-        ch_cram.map { meta, cram_file ->
-            tuple( meta + ['bootstrapping_round': 2], cram_file ) }
-            .set { ch_cram }
-        ch_crai.map { meta, crai_file ->
-            tuple( meta + ['bootstrapping_round': 2], crai_file ) }
-            .set { ch_crai }
         if (params.bqsr_rounds > 1) {
+            ch_cram.map { meta, cram_file ->
+                tuple( meta + ['bootstrapping_round': 2], cram_file ) }
+                .set { ch_cram }
+            ch_crai.map { meta, crai_file ->
+                tuple( meta + ['bootstrapping_round': 2], crai_file ) }
+                .set { ch_crai }
             BOOTSTRAP_VARIANT_SET_2(
                 ch_fasta,
                 ch_fai,
@@ -123,6 +125,30 @@ workflow SWGSRELATE {
             ch_crai = BOOTSTRAP_VARIANT_SET_2.out.crai
             ch_vcf  = BOOTSTRAP_VARIANT_SET_2.out.vcf
             ch_tbi  = BOOTSTRAP_VARIANT_SET_2.out.tbi
+        }
+
+        //
+        // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 3
+        //
+        if (params.bqsr_rounds > 2) {
+            ch_cram.map { meta, cram_file ->
+                tuple( meta + ['bootstrapping_round': 3], cram_file ) }
+                .set { ch_cram }
+            ch_crai.map { meta, crai_file ->
+                tuple( meta + ['bootstrapping_round': 3], crai_file ) }
+                .set { ch_crai }
+            BOOTSTRAP_VARIANT_SET_3(
+                ch_fasta,
+                ch_fai,
+                ch_dict,
+                ch_intervals_split,
+                ch_cram,
+                ch_crai
+            )
+            ch_cram = BOOTSTRAP_VARIANT_SET_3.out.cram
+            ch_crai = BOOTSTRAP_VARIANT_SET_3.out.crai
+            ch_vcf  = BOOTSTRAP_VARIANT_SET_3.out.vcf
+            ch_tbi  = BOOTSTRAP_VARIANT_SET_3.out.tbi
         }
 
         // Remove bootstrapping metadata from CRAM channel
@@ -174,6 +200,8 @@ workflow SWGSRELATE {
         )
         ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
+        ch_vcf_gatk     = CALL_VARIANTS_GATK.out.vcf
+        ch_tbi_gatk     = CALL_VARIANTS_GATK.out.tbi
 
         //
         // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
@@ -188,6 +216,21 @@ workflow SWGSRELATE {
         )
         ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
         ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
+        ch_vcf_bcftools = CALL_VARIANTS_BCFTOOLS.out.vcf
+        ch_tbi_bcftools = CALL_VARIANTS_BCFTOOLS.out.tbi
+    }
+
+    if(params.stages.contains('relatedness_estimation')) {
+        //
+        // SUBWORKFLOW: VCF_INTERSECTION
+        //
+        VCF_INTERSECTION(
+            ch_vcf_gatk,
+            ch_tbi_gatk,
+            ch_vcf_bcftools,
+            ch_tbi_bcftools
+        )
+        ch_versions = ch_versions.mix(VCF_INTERSECTION.out.versions)
     }
 
     //
