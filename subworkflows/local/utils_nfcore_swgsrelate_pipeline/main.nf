@@ -10,14 +10,13 @@
 
 include { UTILS_NFSCHEMA_PLUGIN     } from '../../nf-core/utils_nfschema_plugin'
 include { paramsSummaryMap          } from 'plugin/nf-schema'
+include { samplesheetToList         } from 'plugin/nf-schema'
 include { paramsHelp                } from 'plugin/nf-schema'
 include { completionEmail           } from '../../nf-core/utils_nfcore_pipeline'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE   } from '../../nf-core/utils_nextflow_pipeline'
-
-include { SAMPLESHEET_TO_CHANNEL    } from '../samplesheet_to_channel'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -65,7 +64,7 @@ workflow PIPELINE_INITIALISATION {
 \033[0;35m  nf-core/swgsrelate ${workflow.manifest.version}\033[0m
 -\033[2m----------------------------------------------------\033[0m-
 """
-    after_text = """${workflow.manifest.doi ? "\n* The pipeline\n" : ""}${workflow.manifest.doi.tokenize(",").collect { "    https://doi.org/${it.trim().replace('https://doi.org/','')}"}.join("\n")}${workflow.manifest.doi ? "\n" : ""}
+    after_text = """${workflow.manifest.doi ? "\n* The pipeline\n" : ""}${workflow.manifest.doi.tokenize(",").collect { doi -> "    https://doi.org/${doi.trim().replace('https://doi.org/','')}"}.join("\n")}${workflow.manifest.doi ? "\n" : ""}
 * The nf-core framework
     https://doi.org/10.1038/s41587-020-0439-x
 
@@ -96,10 +95,54 @@ workflow PIPELINE_INITIALISATION {
     //
     // Create channel from input file provided through params.input
     //
-    SAMPLESHEET_TO_CHANNEL(params.input)
+
+    channel
+        .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
+        .map { row ->
+            def meta   = row[0]
+            def file1  = row.size() > 1 ? row[1] : null
+            def file2  = row.size() > 2 ? row[2] : null
+
+            if (!file1) {
+                throw new IllegalArgumentException("Sample ${meta.id} has no input file!")
+            }
+
+            // Detect SPRING vs FASTQ by file extension
+            def is_spring = file1.toString().endsWith(".spring")
+
+            if (is_spring) {
+                // SPRING input
+                def files = file2 ? [file1, file2] : [file1]
+                return [
+                    meta.id,
+                    meta + [
+                        single_end: !file2],
+                    files
+                ]
+            }
+            else {
+                // FASTQ input
+                def files = file2 ? [file1, file2] : [file1]
+                return [
+                    meta.id,
+                    meta + [
+                        single_end: !file2],
+                    files
+                ]
+            }
+        }
+        .groupTuple()
+        .map { samplesheet ->
+            validateInputSamplesheet(samplesheet)
+        }
+        .map {
+            meta, files ->
+                return [ meta, files.flatten() ]
+        }
+        .set { ch_samplesheet }
 
     emit:
-    samplesheet = SAMPLESHEET_TO_CHANNEL.out
+    samplesheet = ch_samplesheet
     versions    = ch_versions
 }
 

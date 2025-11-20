@@ -27,15 +27,35 @@
                 "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
                 "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
             },
+            "spring_1": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.f(ast)?q\\.gz\\.spring$",
+                "errorMessage": "SPRING R1 must have extension '.fq.gz.spring' or '.fastq.gz.spring'"
+            },
+            "spring_2": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.f(ast)?q\\.gz\\.spring$",
+                "errorMessage": "SPRING R2 must have extension '.fq.gz.spring' or '.fastq.gz.spring'"
+            },
             "RGID": {
                 "type": ["string", "integer"],
+                "meta": ["RGID"],
                 "description": "Read group ID (string or integer)"
             },
-            "RGLB": { "type": "string", "description": "Read group library" },
-            "RGPL": { "type": "string", "description": "Platform (e.g. ILLUMINA)" },
-            "RGPU": { "type": "string", "description": "Platform unit" },
-            "RGSM": { "type": "string", "description": "Sample name for read group" }
+            "RGLB": { "type": "string", "meta": ["RGLB"], "description": "Read group library" },
+            "RGPL": { "type": "string", "meta": ["RGPL"], "description": "Platform (e.g., ILLUMINA)" },
+            "RGPU": { "type": "string", "meta": ["RGPU"], "description": "Platform unit" },
+            "RGSM": { "type": "string", "meta": ["RGSM"], "description": "Sample name for read group" }
         },
-        "required": ["sample", "fastq_1"]
+        "required": ["sample"],
+        "dependentRequired": {
+            "fastq_2": ["fastq_1"],
+            "spring_2": ["spring_1"]
+        },
+        "anyOf": [{ "required": ["fastq_1"] }, { "required": ["spring_1"] }]
     }
 }
