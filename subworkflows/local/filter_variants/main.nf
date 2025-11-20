@@ -47,8 +47,8 @@ workflow FILTER_VARIANTS {
     versions = versions.mix(GATK4_SELECTVARIANTS.out.versions)
 
     emit:
-    vcf = GATK4_SELECTVARIANTS.out.vcf
-    tbi = GATK4_SELECTVARIANTS.out.tbi
+    vcf = GATK4_SELECTVARIANTS.out.vcf.collect() // TODO: revise this when changing filter variants to scatter/gather approach
+    tbi = GATK4_SELECTVARIANTS.out.tbi.collect() // TODO: revise this when changing filter variants to scatter/gather approach
     multiqc_files
     versions
 }

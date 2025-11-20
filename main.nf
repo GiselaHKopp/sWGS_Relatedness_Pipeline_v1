@@ -35,7 +35,6 @@ workflow NFCORE_SWGSRELATE {
     samplesheet // channel: samplesheet read in from --input
 
     main:
-
     //
     // WORKFLOW: Run pipeline
     //

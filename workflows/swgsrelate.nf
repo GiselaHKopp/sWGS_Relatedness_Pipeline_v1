@@ -50,189 +50,187 @@ workflow SWGSRELATE {
     // SUBWORKFLOW: PREPARE_GENOME
     //
     PREPARE_GENOME(ch_fasta)
-    ch_fai = PREPARE_GENOME.out.fai
-    ch_dict = PREPARE_GENOME.out.dict
     ch_versions = ch_versions.mix(PREPARE_GENOME.out.versions)
+
+    // Gather built indices or get them from the params
+    // Built from the fasta file:
+    ch_dict = params.dict
+        ? channel.fromPath(params.dict).map { it -> [[id: it.baseName], it] }.collect()
+        : PREPARE_GENOME.out.dict
+    ch_fasta_fai = params.fasta_fai
+        ? channel.fromPath(params.fasta_fai).map { it -> [[id: it.baseName], it] }.collect()
+        : PREPARE_GENOME.out.fasta_fai
+    ch_bwamem2 = params.bwamem2_index
+        ? channel.fromPath(params.bwamem2_index).map { it -> [[id: it.baseName], it] }.collect()
+        : PREPARE_GENOME.out.bwamem2_index
 
     //
     // SUBWORKFLOW: PREPARE_INTERVALS
     //
-    PREPARE_INTERVALS(ch_fai)
+    PREPARE_INTERVALS(ch_fasta_fai)
     ch_intervals_split = PREPARE_INTERVALS.out.intervals_split
     ch_versions = ch_versions.mix(PREPARE_INTERVALS.out.versions)
 
-    if(params.stages.contains('preprocess')) {
-        //
-        // SUBWORKFLOW: PREPROCESS
-        //
-        ch_preprocessed = PREPROCESS(samplesheet, ch_fasta, ch_fai)
-        ch_cram = ch_preprocessed.cram
-        ch_crai = ch_preprocessed.crai
-        ch_versions = ch_versions.mix(ch_preprocessed.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(ch_preprocessed.multiqc_files)
-    } else {
-        // TODO: Load BAMs from samplesheet without preprocessing
-        //ch_cram = channel.empty()
-        //ch_crai = channel.empty()
-        //ch_fai = channel.empty()
-        //ch_dict = channel.empty()
-    }
+    //
+    // SUBWORKFLOW: PREPROCESS
+    //
+    ch_preprocessed = PREPROCESS(samplesheet, ch_fasta, ch_bwamem2, ch_fasta_fai)
+    ch_cram = ch_preprocessed.cram
+    ch_crai = ch_preprocessed.crai
+    ch_versions = ch_versions.mix(ch_preprocessed.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(ch_preprocessed.multiqc_files)
 
-    if(params.stages.contains('bootstrap_variant_set')) {
-        //
-        // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 1
-        //
-        ch_cram.map { meta, cram_file ->
-            tuple( meta + ['bootstrapping_round': 1], cram_file ) }
-            .set { ch_cram }
-        ch_crai.map { meta, crai_file ->
-            tuple( meta + ['bootstrapping_round': 1], crai_file ) }
-            .set { ch_crai }
-        BOOTSTRAP_VARIANT_SET_1(
-            ch_fasta,
-            ch_fai,
-            ch_dict,
-            ch_intervals_split,
-            ch_cram,
-            ch_crai
-        )
-        ch_versions = ch_versions.mix(BOOTSTRAP_VARIANT_SET_1.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(BOOTSTRAP_VARIANT_SET_1.out.multiqc_files)
-        ch_cram = BOOTSTRAP_VARIANT_SET_1.out.cram
-        ch_crai = BOOTSTRAP_VARIANT_SET_1.out.crai
-        ch_vcf  = BOOTSTRAP_VARIANT_SET_1.out.vcf
-        ch_tbi  = BOOTSTRAP_VARIANT_SET_1.out.tbi
+    //
+    // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 1
+    //
+    ch_cram.map { meta, cram_file ->
+        tuple( meta + ['bootstrapping_round': 1], cram_file ) }
+        .set { ch_cram }
+    ch_crai.map { meta, crai_file ->
+        tuple( meta + ['bootstrapping_round': 1], crai_file ) }
+        .set { ch_crai }
+    BOOTSTRAP_VARIANT_SET_1(
+        ch_fasta,
+        ch_fasta_fai,
+        ch_dict,
+        ch_intervals_split,
+        ch_cram,
+        ch_crai
+    )
+    ch_versions = ch_versions.mix(BOOTSTRAP_VARIANT_SET_1.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(BOOTSTRAP_VARIANT_SET_1.out.multiqc_files)
+    ch_cram = BOOTSTRAP_VARIANT_SET_1.out.cram
+    ch_crai = BOOTSTRAP_VARIANT_SET_1.out.crai
+    ch_vcf  = BOOTSTRAP_VARIANT_SET_1.out.vcf
+    ch_tbi  = BOOTSTRAP_VARIANT_SET_1.out.tbi
 
-        //
-        // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 2
-        //
-        if (params.bqsr_rounds > 1) {
-            ch_cram.map { meta, cram_file ->
-                tuple( meta + ['bootstrapping_round': 2], cram_file ) }
-                .set { ch_cram }
-            ch_crai.map { meta, crai_file ->
-                tuple( meta + ['bootstrapping_round': 2], crai_file ) }
-                .set { ch_crai }
-            BOOTSTRAP_VARIANT_SET_2(
-                ch_fasta,
-                ch_fai,
-                ch_dict,
-                ch_intervals_split,
-                ch_cram,
-                ch_crai
-            )
-            ch_cram = BOOTSTRAP_VARIANT_SET_2.out.cram
-            ch_crai = BOOTSTRAP_VARIANT_SET_2.out.crai
-            ch_vcf  = BOOTSTRAP_VARIANT_SET_2.out.vcf
-            ch_tbi  = BOOTSTRAP_VARIANT_SET_2.out.tbi
-        }
+    //
+    // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 2
+    //
+    ch_cram.map { meta, cram_file ->
+        tuple( meta + ['bootstrapping_round': 2], cram_file ) }
+        .set { ch_cram }
+    ch_crai.map { meta, crai_file ->
+        tuple( meta + ['bootstrapping_round': 2], crai_file ) }
+        .set { ch_crai }
+    BOOTSTRAP_VARIANT_SET_2(
+        ch_fasta,
+        ch_fasta_fai,
+        ch_dict,
+        ch_intervals_split,
+        ch_cram,
+        ch_crai
+    )
+    ch_cram = BOOTSTRAP_VARIANT_SET_2.out.cram
+    ch_crai = BOOTSTRAP_VARIANT_SET_2.out.crai
+    ch_vcf  = BOOTSTRAP_VARIANT_SET_2.out.vcf
+    ch_tbi  = BOOTSTRAP_VARIANT_SET_2.out.tbi
 
-        //
-        // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 3
-        //
-        if (params.bqsr_rounds > 2) {
-            ch_cram.map { meta, cram_file ->
-                tuple( meta + ['bootstrapping_round': 3], cram_file ) }
-                .set { ch_cram }
-            ch_crai.map { meta, crai_file ->
-                tuple( meta + ['bootstrapping_round': 3], crai_file ) }
-                .set { ch_crai }
-            BOOTSTRAP_VARIANT_SET_3(
-                ch_fasta,
-                ch_fai,
-                ch_dict,
-                ch_intervals_split,
-                ch_cram,
-                ch_crai
-            )
-            ch_cram = BOOTSTRAP_VARIANT_SET_3.out.cram
-            ch_crai = BOOTSTRAP_VARIANT_SET_3.out.crai
-            ch_vcf  = BOOTSTRAP_VARIANT_SET_3.out.vcf
-            ch_tbi  = BOOTSTRAP_VARIANT_SET_3.out.tbi
-        }
 
-        // Remove bootstrapping metadata from CRAM channel
-        ch_cram.map { meta, cram_file ->
-            tuple( meta - meta.subMap('bootstrapping_round'), cram_file ) }
-            .set { ch_cram }
-        ch_crai.map { meta, crai_file ->
-            tuple( meta - meta.subMap('bootstrapping_round'), crai_file ) }
-            .set { ch_crai }
-    } else {
-        // TODO: Load existing variant set
-        //ch_cram = channel.empty()
-        //ch_crai = channel.empty()
-        //ch_vcf = channel.empty()
-        //ch_tbi = channel.empty()
-    }
+    //
+    // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 3
+    //
+    ch_cram.map { meta, cram_file ->
+        tuple( meta + ['bootstrapping_round': 3], cram_file ) }
+        .set { ch_cram }
+    ch_crai.map { meta, crai_file ->
+        tuple( meta + ['bootstrapping_round': 3], crai_file ) }
+        .set { ch_crai }
+    BOOTSTRAP_VARIANT_SET_3(
+        ch_fasta,
+        ch_fasta_fai,
+        ch_dict,
+        ch_intervals_split,
+        ch_cram,
+        ch_crai
+    )
+    ch_cram = BOOTSTRAP_VARIANT_SET_3.out.cram
+    ch_crai = BOOTSTRAP_VARIANT_SET_3.out.crai
+    ch_vcf  = BOOTSTRAP_VARIANT_SET_3.out.vcf
+    ch_tbi  = BOOTSTRAP_VARIANT_SET_3.out.tbi
 
-    if(params.stages.contains('base_quality_score_recalibration')) {
-        //
-        // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION
-        //
-        BASE_QUALITY_SCORE_RECALIBRATION(
-            ch_fasta,
-            ch_fai,
-            ch_dict,
-            ch_intervals_split,
-            ch_cram,
-            ch_crai,
-            ch_vcf,
-            ch_tbi
-        )
-        ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
-        ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.cram
-        ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.crai
-    }
+    // Remove bootstrapping metadata from CRAM channel
+    ch_cram.map { meta, cram_file ->
+        tuple( meta - meta.subMap('bootstrapping_round'), cram_file ) }
+        .set { ch_cram }
+    ch_crai.map { meta, crai_file ->
+        tuple( meta - meta.subMap('bootstrapping_round'), crai_file ) }
+        .set { ch_crai }
 
-    if(params.stages.contains('variant_calling')) {
-        //
-        // SUBWORKFLOW: CALL_VARIANTS_GATK
-        //
-        CALL_VARIANTS_GATK(
-            ch_fasta,
-            ch_fai,
-            ch_dict,
-            ch_intervals_split,
-            ch_cram,
-            ch_crai
-        )
-        ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
-        ch_vcf_gatk     = CALL_VARIANTS_GATK.out.vcf
-        ch_tbi_gatk     = CALL_VARIANTS_GATK.out.tbi
+    ch_vcf = params.known_variants_vcf
+        ? channel.fromPath(params.known_variants_vcf).map { it -> [[id: 'known_variants_vcf'], it] }.collect()
+        : ch_vcf
+    ch_tbi = params.known_variants_tbi
+        ? channel.fromPath(params.known_variants_tbi).map { it -> [[id: 'known_variants_tbi'], it] }.collect()
+        : ch_tbi // add option for computing tbi from vcf if not provided
 
-        //
-        // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
-        //
-        CALL_VARIANTS_BCFTOOLS(
-            ch_fasta,
-            ch_fai,
-            ch_dict,
-            ch_intervals_split,
-            ch_cram,
-            ch_crai
-        )
-        ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
-        ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
-        ch_vcf_bcftools = CALL_VARIANTS_BCFTOOLS.out.vcf
-        ch_tbi_bcftools = CALL_VARIANTS_BCFTOOLS.out.tbi
-    }
+    ch_cram.dump(tag: 'Final CRAM files')
+    ch_crai.dump(tag: 'Final CRI files')
+    ch_vcf.dump(tag: 'Final VCF files')
+    ch_tbi.dump(tag: 'Final TBI files')
 
-    if(params.stages.contains('relatedness_estimation')) {
-        //
-        // SUBWORKFLOW: VCF_INTERSECTION
-        //
-        VCF_INTERSECTION(
-            ch_vcf_gatk,
-            ch_tbi_gatk,
-            ch_vcf_bcftools,
-            ch_tbi_bcftools
-        )
-        ch_versions = ch_versions.mix(VCF_INTERSECTION.out.versions)
-    }
+/*
+    //
+    // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION
+    //
+    BASE_QUALITY_SCORE_RECALIBRATION(
+        ch_fasta,
+        ch_fasta_fai,
+        ch_dict,
+        ch_intervals_split,
+        ch_cram,
+        ch_crai,
+        ch_vcf,
+        ch_tbi
+    )
+    ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
+    ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.cram
+    ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.crai
 
+    //
+    // SUBWORKFLOW: CALL_VARIANTS_GATK
+    //
+    CALL_VARIANTS_GATK(
+        ch_fasta,
+        ch_fasta_fai,
+        ch_dict,
+        ch_intervals_split,
+        ch_cram,
+        ch_crai
+    )
+    ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
+    ch_vcf_gatk     = CALL_VARIANTS_GATK.out.vcf
+    ch_tbi_gatk     = CALL_VARIANTS_GATK.out.tbi
+
+    //
+    // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
+    //
+    CALL_VARIANTS_BCFTOOLS(
+        ch_fasta,
+        ch_fasta_fai,
+        ch_dict,
+        ch_intervals_split,
+        ch_cram,
+        ch_crai
+    )
+    ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
+    ch_vcf_bcftools = CALL_VARIANTS_BCFTOOLS.out.vcf
+    ch_tbi_bcftools = CALL_VARIANTS_BCFTOOLS.out.tbi
+
+    //
+    // SUBWORKFLOW: VCF_INTERSECTION
+    //
+    VCF_INTERSECTION(
+        ch_vcf_gatk,
+        ch_tbi_gatk,
+        ch_vcf_bcftools,
+        ch_tbi_bcftools
+    )
+    ch_versions = ch_versions.mix(VCF_INTERSECTION.out.versions)
+*/
     //
     // Collate and save software versions
     //

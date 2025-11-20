@@ -22,7 +22,6 @@ workflow CRAM_BASERECALIBRATOR {
 
     main:
     versions = channel.empty()
-    cram.dump(tag: 'CRAM_BASERECALIBRATOR (cram)')
 
     // Run BaseRecalibrator
     GATK4_BASERECALIBRATOR(
@@ -30,11 +29,11 @@ workflow CRAM_BASERECALIBRATOR {
         fasta,
         fai,
         dict,
-        vcf.map{ _meta, files -> [['id' : 'known_sites'], files]},
-        tbi.map{ _meta, files -> [['id' : 'known_sites'], files]}
+        vcf.map { meta, files -> [[id:'known_sites'], files] },
+        tbi.map { meta, files -> [[id:'known_sites'], files] }
     )
     versions = versions.mix(GATK4_BASERECALIBRATOR.out.versions)
-    GATK4_BASERECALIBRATOR.out.table.dump(tag: 'CRAM_BASERECALIBRATOR (out.table)')
+
     // Figuring out if there is one or more table(s) from the same sample
     ch_table_to_merge = GATK4_BASERECALIBRATOR.out.table
         .map{ meta, table ->
@@ -44,8 +43,8 @@ workflow CRAM_BASERECALIBRATOR {
             new_meta.id = "${key}_${meta.bootstrapping_round}"
             // Remove interval_name from meta in order to group by sample only
             tuple(new_meta, table)
-        }.dump(tag: 'CRAM_BASERECALIBRATOR (GATK4_BASERECALIBRATOR.out.table.map())')
-        .groupTuple().dump(tag: 'CRAM_BASERECALIBRATOR (GATK4_BASERECALIBRATOR.out.table.map().groupTuple())')
+        }
+        .groupTuple()
         .branch{ tuple ->
             // Use meta.num_intervals to asses number of intervals
             single:   tuple[0].num_intervals <= 1

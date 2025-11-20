@@ -81,7 +81,7 @@ workflow CALL_VARIANTS_GATK {
 
     // Run BCFtools stats
     ch_vcf_tbi = GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi)
-    .map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
+    .map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }.dump(tag: 'CALL_VARIANTS_GATK (ch_vcf_tbi)')
     BCFTOOLS_STATS(ch_vcf_tbi, [[id: 'no_regions'], []], [[id: 'no_targets'], []], [[id: 'no_samples'], []], [[id: 'no_exons'], []], fasta)
     multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
     versions = versions.mix(BCFTOOLS_STATS.out.versions)
@@ -89,7 +89,7 @@ workflow CALL_VARIANTS_GATK {
     // Sort each interval VCF before merging
     ch_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
         .map { meta, vcf ->
-            def new_meta = meta + [ id: "${meta.id}.sorted" ]
+            def new_meta = meta + [ id: "${meta.id}.sorted" ] + [ variantcaller: 'gatk' ]
             tuple(new_meta, vcf)
         }
 
@@ -98,7 +98,7 @@ workflow CALL_VARIANTS_GATK {
 
     // Collect sorted VCFs into one tuple for merging
     ch_merge_vcfs = BCFTOOLS_SORT.out.vcf
-        .map { _meta, vcf -> vcf }
+        .map { _meta, vcf -> vcf }.dump(tag: 'CALL_VARIANTS_GATK (ch_merge_vcfs)')
         .collect()
         .map { vcfs ->
             def new_meta = [id: "joint_merged", variantcaller: 'gatk']
@@ -109,9 +109,38 @@ workflow CALL_VARIANTS_GATK {
     GATK4_MERGEVCFS(ch_merge_vcfs, dict)
     versions = versions.mix(GATK4_MERGEVCFS.out.versions)
 
+    // Extract the bootstrapping round from any CRAM meta
+    ch_bootstrap_round = cram.map { meta, _cram_file -> meta.bootstrapping_round ?: null }.first()
+
+    ch_final_vcf = GATK4_MERGEVCFS.out.vcf
+        .combine(ch_bootstrap_round)
+        .map { meta, vcf, round ->
+            if (round) {
+                def new_meta = meta + [
+                    id: meta.id + "_${round}",
+                    bootstrapping_round: round
+                ]
+                return tuple(new_meta, vcf)
+            }
+            return tuple(meta, vcf)
+        }
+
+    ch_final_tbi = GATK4_MERGEVCFS.out.tbi
+        .combine(ch_bootstrap_round)
+        .map { meta, tbi, round ->
+            if (round) {
+                def new_meta = meta + [
+                    id: meta.id + "_${round}",
+                    bootstrapping_round: round
+                ]
+                return tuple(new_meta, tbi)
+            }
+            return tuple(meta, tbi)
+        }
+
     emit:
-    vcf = GATK4_MERGEVCFS.out.vcf
-    tbi = GATK4_MERGEVCFS.out.tbi
+    vcf = ch_final_vcf
+    tbi = ch_final_tbi
     multiqc_files
     versions
 }

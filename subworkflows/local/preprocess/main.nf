@@ -3,7 +3,6 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { BWAMEM2_INDEX                  } from '../../../modules/nf-core/bwamem2/index'
 include { BWAMEM2_MEM                    } from '../../../modules/nf-core/bwamem2/mem'
 include { FASTP                          } from '../../../modules/nf-core/fastp'
 include { GATK4_ADDORREPLACEREADGROUPS   } from '../../../modules/nf-core/gatk4/addorreplacereadgroups'
@@ -23,6 +22,7 @@ workflow PREPROCESS {
     take:
     samplesheet // channel: [ meta, list(fastq) ]
     fasta       // channel: [ meta, fasta]
+    bwamem2     // channel: [ meta, bwamem2 ]
     fai         // channel: [ meta, fai]
 
     main:
@@ -48,12 +48,8 @@ workflow PREPROCESS {
     versions = versions.mix(FASTP.out.versions)
     multiqc_files = FASTP.out.html.map { _meta, file -> file }.mix(FASTP.out.json.map { _meta, file -> file })
 
-    // Build the BWA index from the provided FASTA
-    BWAMEM2_INDEX(fasta)
-    versions = versions.mix(BWAMEM2_INDEX.out.versions)
-
     // Map to reference
-    BWAMEM2_MEM(FASTP.out.reads, BWAMEM2_INDEX.out.index, fasta, true)
+    BWAMEM2_MEM(FASTP.out.reads, bwamem2, fasta, true)
     versions = versions.mix(BWAMEM2_MEM.out.versions)
 
     // Add read groups

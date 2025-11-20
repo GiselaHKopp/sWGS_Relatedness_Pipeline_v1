@@ -43,45 +43,6 @@
                 }
             }
         },
-        "workflow_options": {
-            "title": "Workflow options",
-            "type": "object",
-            "fa_icon": "fas fa-list-check",
-            "required": ["stages"],
-            "properties": {
-                "bqsr_rounds": {
-                    "type": "integer",
-                    "description": "Number of BQSR rounds to perform.",
-                    "help_text": "Number of Base Quality Score Recalibration (BQSR) rounds to perform. Typically 1 or 2 rounds are sufficient.",
-                    "default": 1,
-                    "fa_icon": "fas fa-hashtag"
-                },
-                "stages": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": [
-                            "preprocess",
-                            "bootstrap_variant_set",
-                            "base_quality_score_recalibration",
-                            "variant_calling",
-                            "relatedness_estimation"
-                        ]
-                    },
-                    "uniqueItems": true,
-                    "description": "Workflow stages to run",
-                    "help_text": "Valid stages: 'prepare_variant_set', 'variant_calling', 'base_quality_score_recalibration', 'genotype_likelihood', 'relatedness_estimation'",
-                    "fa_icon": "fas fa-list-check"
-                },
-                "use_gatk_spark": {
-                    "type": "boolean",
-                    "description": "Use GATK Spark.",
-                    "help_text": "If set to true, the markduplicates step will be run using GATK4 Spark.",
-                    "default": false,
-                    "fa_icon": "fas fa-wand-sparkles"
-                }
-            }
-        },
         "reference_genome_options": {
             "title": "Reference genome options",
             "type": "object",
@@ -94,12 +55,105 @@
                     "exists": true,
                     "mimetype": "text/plain",
                     "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
-                    "description": "Path to FASTA genome file.",
+                    "description": "Path to FASTA reference genome file.",
                     "help_text": "Provide the absolute or relative path to the FASTA file used as reference genome. The pipeline will automatically create BWA and FAI indices if they are missing.",
                     "fa_icon": "far fa-file-code"
+                },
+                "fasta_fai": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "mimetype": "text/plain",
+                    "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?\\.fai$",
+                    "description": "Path to FASTA index (.fai) file for the reference genome.",
+                    "help_text": "Optional. Provide an existing FAI index file. If omitted, the pipeline will generate one automatically using samtools faidx.",
+                    "fa_icon": "far fa-file-code"
+                },
+                "dict": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "mimetype": "text/plain",
+                    "pattern": "^\\S+\\.dict$",
+                    "description": "Path to sequence dictionary (.dict) for the reference genome.",
+                    "help_text": "Optional. Provide an existing GATK-style sequence dictionary. If omitted, the pipeline will create it using GATK CreateSequenceDictionary.",
+                    "fa_icon": "far fa-file-alt"
+                },
+                "bwamem2_index": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "Path to directory containing the BWA-MEM2 index for the reference genome.",
+                    "help_text": "Optional. Provide a directory with pre-built BWA-MEM2 index files (e.g., .0123, .amb, .ann, .bwt.2bit.64, .pac). If omitted, the pipeline will generate the index automatically.",
+                    "fa_icon": "far fa-folder-open"
                 }
             },
             "required": ["fasta"]
+        },
+        "variant_set_options": {
+            "title": "Variant set options",
+            "type": "object",
+            "fa_icon": "fas fa-dna",
+            "description": "Options for providing an existing known variant set or generating one via bootstrapping.",
+            "properties": {
+                "known_variants_vcf": {
+                    "type": ["string", "null"],
+                    "fa_icon": "fas fa-copy",
+                    "format": "file-path",
+                    "pattern": "^\\S+\\.vcf\\.gz$",
+                    "exists": true,
+                    "mimetype": "text/plain",
+                    "description": "Path to known variant set vcf file.",
+                    "help_text": "If none provided, it will be generated via bootstrap algorithm."
+                },
+                "known_variants_tbi": {
+                    "type": ["string", "null"],
+                    "fa_icon": "fas fa-copy",
+                    "format": "file-path",
+                    "pattern": "^\\S+\\.vcf\\.gz\\.tbi$",
+                    "exists": true,
+                    "mimetype": "text/plain",
+                    "description": "Path to known variant set tabix index tbi file.",
+                    "help_text": "If none provided, it will be generated automatically from the known index file, if provided."
+                },
+                "bootstrapping_rounds": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "default": 2,
+                    "fa_icon": "fas fa-hashtag",
+                    "description": "Number of bootstrapping rounds to perform when generating a variant set.",
+                    "help_text": "Ignored when known_variants_vcf is provided."
+                }
+            },
+            "oneOf": [
+                {
+                    "title": "Use provided VCF and TBI",
+                    "properties": {
+                        "known_variants_vcf": { "type": "string" },
+                        "known_variants_tbi": { "type": "string" },
+                        "bootstrapping_rounds": { "type": "null" }
+                    },
+                    "required": ["known_variants_vcf", "known_variants_tbi"]
+                },
+                {
+                    "title": "Use provided VCF and compute TBI",
+                    "properties": {
+                        "known_variants_vcf": { "type": "string" },
+                        "known_variants_tbi": { "type": "null" },
+                        "bootstrapping_rounds": { "type": "null" }
+                    },
+                    "required": ["known_variants_vcf"]
+                },
+                {
+                    "title": "Generate variant set via bootstrapping",
+                    "properties": {
+                        "known_variants_vcf": { "type": "null" },
+                        "known_variants_tbi": { "type": "null" },
+                        "bootstrapping_rounds": { "type": "integer" }
+                    },
+                    "required": ["bootstrapping_rounds"]
+                }
+            ]
         },
         "institutional_config_options": {
             "title": "Institutional config options",
@@ -264,10 +318,10 @@
             "$ref": "#/$defs/input_output_options"
         },
         {
-            "$ref": "#/$defs/workflow_options"
+            "$ref": "#/$defs/reference_genome_options"
         },
         {
-            "$ref": "#/$defs/reference_genome_options"
+            "$ref": "#/$defs/variant_set_options"
         },
         {
             "$ref": "#/$defs/institutional_config_options"

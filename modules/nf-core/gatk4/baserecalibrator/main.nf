@@ -36,6 +36,8 @@ process GATK4_BASERECALIBRATOR {
         avail_mem = (task.memory.mega * 0.8).intValue()
     }
     """
+    echo "Running BaseRecalibrator for meta.id=${meta.id}"
+    echo gatk --java-options "-Xmx${avail_mem}M -XX:-UsePerfData" BaseRecalibrator --input ${input} --output ${prefix}.table --reference ${fasta} ${interval_command} ${sites_command} --tmp-dir .        ${args}
     gatk --java-options "-Xmx${avail_mem}M -XX:-UsePerfData" \\
         BaseRecalibrator  \\
         --input ${input} \\
