@@ -80,19 +80,14 @@ workflow SWGSRELATE {
     //
     // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 1
     //
-    ch_cram.map { meta, cram_file ->
-        tuple( meta + ['bootstrapping_round': 1], cram_file ) }
-        .set { ch_cram }
-    ch_crai.map { meta, crai_file ->
-        tuple( meta + ['bootstrapping_round': 1], crai_file ) }
-        .set { ch_crai }
     BOOTSTRAP_VARIANT_SET_1(
         ch_fasta,
         ch_fasta_fai,
         ch_dict,
         ch_intervals_split,
         ch_cram,
-        ch_crai
+        ch_crai,
+        1
     )
     ch_versions = ch_versions.mix(BOOTSTRAP_VARIANT_SET_1.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(BOOTSTRAP_VARIANT_SET_1.out.multiqc_files)
@@ -104,19 +99,14 @@ workflow SWGSRELATE {
     //
     // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 2
     //
-    ch_cram.map { meta, cram_file ->
-        tuple( meta + ['bootstrapping_round': 2], cram_file ) }
-        .set { ch_cram }
-    ch_crai.map { meta, crai_file ->
-        tuple( meta + ['bootstrapping_round': 2], crai_file ) }
-        .set { ch_crai }
     BOOTSTRAP_VARIANT_SET_2(
         ch_fasta,
         ch_fasta_fai,
         ch_dict,
         ch_intervals_split,
         ch_cram,
-        ch_crai
+        ch_crai,
+        2
     )
     ch_cram = BOOTSTRAP_VARIANT_SET_2.out.cram
     ch_crai = BOOTSTRAP_VARIANT_SET_2.out.crai
@@ -127,32 +117,19 @@ workflow SWGSRELATE {
     //
     // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 3
     //
-    ch_cram.map { meta, cram_file ->
-        tuple( meta + ['bootstrapping_round': 3], cram_file ) }
-        .set { ch_cram }
-    ch_crai.map { meta, crai_file ->
-        tuple( meta + ['bootstrapping_round': 3], crai_file ) }
-        .set { ch_crai }
     BOOTSTRAP_VARIANT_SET_3(
         ch_fasta,
         ch_fasta_fai,
         ch_dict,
         ch_intervals_split,
         ch_cram,
-        ch_crai
+        ch_crai,
+        3
     )
     ch_cram = BOOTSTRAP_VARIANT_SET_3.out.cram
     ch_crai = BOOTSTRAP_VARIANT_SET_3.out.crai
     ch_vcf  = BOOTSTRAP_VARIANT_SET_3.out.vcf
     ch_tbi  = BOOTSTRAP_VARIANT_SET_3.out.tbi
-
-    // Remove bootstrapping metadata from CRAM channel
-    ch_cram.map { meta, cram_file ->
-        tuple( meta - meta.subMap('bootstrapping_round'), cram_file ) }
-        .set { ch_cram }
-    ch_crai.map { meta, crai_file ->
-        tuple( meta - meta.subMap('bootstrapping_round'), crai_file ) }
-        .set { ch_crai }
 
     ch_vcf = params.known_variants_vcf
         ? channel.fromPath(params.known_variants_vcf).map { it -> [[id: 'known_variants_vcf'], it] }.collect()

@@ -35,27 +35,30 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
 
     // Combine CRAM with intervals
     COMBINE_CRAM_CRAI_INTERVALS(intervals, cram, crai)
+    COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
+        .map { meta, cram_file, crai_file, interval_file ->
+            def new_id = meta.id + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_meta = meta + [ id: new_id ]
+            tuple(new_meta, cram_file, crai_file, interval_file)
+        }.dump(tag: 'BQSR (combined_cram_crai_intervals)')
+        .set { combined_cram_crai_intervals }
 
     // Run BaseRecalibrator
-    CRAM_BASERECALIBRATOR(fasta, fai, dict, COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals, vcf, tbi)
+    CRAM_BASERECALIBRATOR(fasta, fai, dict, combined_cram_crai_intervals, vcf, tbi)
     versions = versions.mix(CRAM_BASERECALIBRATOR.out.versions)
 
+    CRAM_BASERECALIBRATOR.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr)')
+
     // Combine CRAM with BQSR table
-    ch_cram_with_table = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
-        .map { meta, cram_file, crai_file, interval_file ->
-            def key = meta.RGSM ?: meta.id
-            tuple(key, meta, cram_file, crai_file, interval_file)
-        }
-        .join(
-            CRAM_BASERECALIBRATOR.out.table_bqsr.map { meta, table ->
-                def key = meta.RGSM
-                tuple(key, table)
-            },
-            by: 0
-        )
-        .map { _key, meta, cram_file, crai_file, interval_file, table ->
-            tuple(meta, cram_file, crai_file, table, interval_file)
-        }
+    ch_cram_with_table = combined_cram_crai_intervals
+        .combine(CRAM_BASERECALIBRATOR.out.table_bqsr).dump(tag: 'BQSR (combined_cram_crai_intervals.combine())')
+        .filter { meta_cc, _cram_file, _crai_file, _interval_file, meta_tab, _table ->
+            // only keep pairs where sample IDs match
+            meta_cc.RGSM == meta_tab.RGSM
+        }.dump(tag: 'BQSR (combined_cram_crai_intervals.combine().filter())')
+        .map { meta_cram, cram_file, crai_file, interval_file, _meta_table, table ->
+            tuple(meta_cram, cram_file, crai_file, table, interval_file)
+        }.dump(tag: 'BQSR (ch_cram_with_table)')
 
     // Run ApplyBQSR
     GATK4_APPLYBQSR(
@@ -66,19 +69,22 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     )
     versions = versions.mix(GATK4_APPLYBQSR.out.versions)
 
+/*
+    // TODO: Do we need quality control per-sample or per-sample-per-interval
     // Index recalibrated CRAMs (per interval)
     SAMTOOLS_INDEX_SCATTERED(GATK4_APPLYBQSR.out.cram)
     versions = versions.mix(SAMTOOLS_INDEX_SCATTERED.out.versions)
-/*
+
+    SAMTOOLS_INDEX_SCATTERED.out.crai.dump(tag: 'BQSR (SAMTOOLS_INDEX_SCATTERED.out.crai)')
+
     // Combine recalibrated CRAM with intervals for second pass
-    ch_cram_second_pass = GATK4_APPLYBQSR.out.cram.join(SAMTOOLS_INDEX_SCATTERED.out.crai)
-    .combine(intervals)
-    .map { cram_meta, cram_file, crai_file, _interval_meta, interval_file, _num_intervals ->
-        // Change id to get distinct filenames
-        def meta = cram_meta.clone()
-        meta.id = "${cram_meta.id}.after"
-        tuple(meta, cram_file, crai_file, interval_file)
-    }
+    ch_cram_second_pass = GATK4_APPLYBQSR.out.cram.join(SAMTOOLS_INDEX_SCATTERED.out.crai).dump(tag: 'BQSR (GATK4_APPLYBQSR.out.cram.join())')
+        .combine(intervals).dump(tag: 'BQSR (GATK4_APPLYBQSR.out.cram.join().combine())')
+        .map { cram_meta, cram_file, crai_file, _interval_meta, interval_file, _num_intervals ->
+            // Change id to get distinct filenames
+            def new_meta = cram_meta + [ id: "${cram_meta.id}.after" ]
+            tuple(new_meta, cram_file, crai_file, interval_file)
+        }.dump(tag: 'BQSR (ch_cram_second_pass)')
 
     // Run BaseRecalibrator (second pass, for quality control)
     CRAM_BASERECALIBRATOR_SECOND_PASS(
@@ -90,26 +96,36 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         tbi.map{ _meta, files -> [['id' : 'known_sites'], files]}
     )
 
-    ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
-    ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr.map { meta, table -> tuple(meta.RGSM ?: meta.id, [meta, table]) }
-    ch_bqsr_tables = ch_bqsr_first.join(ch_bqsr_second).map { _key, first, second ->
-        def meta = first[0]
-        def table_before = first[1]
-        def table_after  = second[1]
+    ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr) ')
+        .map { meta, table ->
+            tuple(meta.RGSM ?: meta.id, [meta, table])
+        }.dump(tag: 'BQSR (ch_bqsr_first)')
+    ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr) ')
+        .map { meta, table ->
+            tuple(meta.RGSM ?: meta.id, [meta, table])
+        }.dump(tag: 'BQSR (ch_bqsr_second)')
+    ch_bqsr_tables = ch_bqsr_first
+        .join(ch_bqsr_second).dump(tag: 'BQSR (ch_bqsr_first.join(ch_bqsr_second))')
+        .map { _key, first, second ->
+            def meta = first[0]
+            def table_before = first[1]
+            def table_after  = second[1]
 
-        tuple(meta, table_before, table_after)
-    }
+            tuple(meta, table_before, table_after)
+        }.dump(tag: 'BQSR (ch_bqsr_tables)')
 
     // Run AnalyzeCovariates
     GATK4_ANALYZECOVARIATES(ch_bqsr_tables)
     versions = versions.mix(GATK4_ANALYZECOVARIATES.out.versions)
 */
     // Merge recalibrated CRAMs if needed
-    ch_cram_branch = GATK4_APPLYBQSR.out.cram.map{ meta, table ->
-            def new_meta = meta.clone()
-            new_meta - meta.subMap('interval_name')
-            tuple(new_meta, table)
-        }.groupTuple()
+    ch_cram_branch = GATK4_APPLYBQSR.out.cram
+        .map{ meta, cram_file ->
+            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name')
+            tuple(new_meta, cram_file)
+        }
+        .groupTuple()
         .branch { tuple ->
             single:   tuple[0].num_intervals <= 1
             multiple: tuple[0].num_intervals > 1

@@ -20,10 +20,31 @@ workflow BOOTSTRAP_VARIANT_SET {
     intervals   // channel: [ meta, intervals, number_of_intervals]
     cram        // channel: [ meta, cram]
     crai        // channel: [ meta, crai]
+    round       // channel: integer bootstrap round number
 
     main:
     versions = channel.empty()
     multiqc_files = channel.empty()
+
+    // Add bootstrapping metadata to channels
+    fasta.map { meta, fasta_file ->
+        tuple( meta + [bootstrapping_round: round], fasta_file ) }
+        .set { fasta }
+    fai.map { meta, fai_file ->
+        tuple( meta + [bootstrapping_round: round], fai_file ) }
+        .set { fai }
+    dict.map { meta, dict_file ->
+        tuple( meta + [bootstrapping_round: round], dict_file ) }
+        .set { dict }
+    intervals.map { meta, interval_file, num_intervals ->
+        tuple( meta + [bootstrapping_round: round], interval_file, num_intervals ) }
+        .set { intervals }
+    cram.map { meta, cram_file ->
+        tuple( meta + [bootstrapping_round: round], cram_file ) }
+        .set { cram }
+    crai.map { meta, crai_file ->
+        tuple( meta + [bootstrapping_round: round], crai_file ) }
+        .set { crai }
 
     //
     // SUBWORKFLOW: CALL_VARIANTS_GATK_BOOTSTRAP
@@ -68,11 +89,26 @@ workflow BOOTSTRAP_VARIANT_SET {
     versions = versions.mix(BQSR_BOOTSTRAP.out.versions)
     multiqc_files = multiqc_files.mix(BQSR_BOOTSTRAP.out.multiqc_files)
 
+
+    // Remove bootstrapping metadata from CRAM channel
+    BQSR_BOOTSTRAP.out.recalibrated_cram.map { meta, cram_file ->
+        tuple( meta - meta.subMap('bootstrapping_round'), cram_file ) }
+        .set { ch_cram_output }
+    BQSR_BOOTSTRAP.out.recalibrated_crai.map { meta, crai_file ->
+        tuple( meta - meta.subMap('bootstrapping_round'), crai_file ) }
+        .set { ch_crai_output }
+    FILTER_VARIANTS_BOOTSTRAP.out.vcf.map { meta, vcf_file ->
+        tuple( meta - meta.subMap('bootstrapping_round'), vcf_file ) }
+        .set { ch_vcf_output }
+    FILTER_VARIANTS_BOOTSTRAP.out.tbi.map { meta, tbi_file ->
+        tuple( meta - meta.subMap('bootstrapping_round'), tbi_file ) }
+        .set { ch_tbi_output }
+
     emit:
-    cram = BQSR_BOOTSTRAP.out.recalibrated_cram
-    crai = BQSR_BOOTSTRAP.out.recalibrated_crai
-    vcf = FILTER_VARIANTS_BOOTSTRAP.out.vcf
-    tbi = FILTER_VARIANTS_BOOTSTRAP.out.tbi
+    cram = ch_cram_output
+    crai = ch_crai_output
+    vcf  = ch_vcf_output
+    tbi  = ch_tbi_output
     multiqc_files
     versions
 }

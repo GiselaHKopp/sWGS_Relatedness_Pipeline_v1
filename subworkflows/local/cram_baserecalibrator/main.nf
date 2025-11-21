@@ -37,10 +37,10 @@ workflow CRAM_BASERECALIBRATOR {
     // Figuring out if there is one or more table(s) from the same sample
     ch_table_to_merge = GATK4_BASERECALIBRATOR.out.table
         .map{ meta, table ->
-            // Use sample name as key, ensure num_intervals is available
-            def key = meta.RGSM ?: meta.id.split('_')[0]
-            def new_meta = meta - meta.subMap('interval_name')
-            new_meta.id = "${key}_${meta.bootstrapping_round}"
+            // Use sample name and bootstrapping stage as key, ensure num_intervals is available
+            def sample_name = meta.RGSM ?: meta.id.split('_')[0]
+            def new_id = "${sample_name}" + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_meta = meta + [id: new_id] - meta.subMap('interval_name', 'reference_fasta')
             // Remove interval_name from meta in order to group by sample only
             tuple(new_meta, table)
         }

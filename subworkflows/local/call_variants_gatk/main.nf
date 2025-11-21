@@ -30,13 +30,34 @@ workflow CALL_VARIANTS_GATK {
     versions = channel.empty()
     multiqc_files = channel.empty()
 
+    // Add variant callerrapping metadata to channels
+    fasta.map { meta, fasta_file ->
+        tuple( meta + [variantcaller: 'gatk'], fasta_file ) }
+        .set { fasta }
+    fai.map { meta, fai_file ->
+        tuple( meta + [variantcaller: 'gatk'], fai_file ) }
+        .set { fai }
+    dict.map { meta, dict_file ->
+        tuple( meta + [variantcaller: 'gatk'], dict_file ) }
+        .set { dict }
+    intervals.map { meta, interval_file, num_intervals ->
+        tuple( meta + [variantcaller: 'gatk'], interval_file, num_intervals ) }
+        .set { intervals }
+    cram.map { meta, cram_file ->
+        tuple( meta + [variantcaller: 'gatk'], cram_file ) }
+        .set { cram }
+    crai.map { meta, crai_file ->
+        tuple( meta + [variantcaller: 'gatk'], crai_file ) }
+        .set { crai }
+
     // Combine CRAM with CRAI and intervals
     COMBINE_CRAM_CRAI_INTERVALS(intervals, cram, crai)
 
     // Prepare HaplotypeCaller input
     ch_haplotypecaller_input = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
         .map { meta, cram_file, crai_file, interval_file ->
-            def new_meta = meta + [variantcaller: 'gatk']
+            def new_id = meta.id + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_meta = meta + [ id: new_id ]
             tuple(new_meta, cram_file, crai_file, interval_file, [])
         }
 
@@ -47,21 +68,19 @@ workflow CALL_VARIANTS_GATK {
     // Prepare for GenomicsDBImport
     ch_gvcfs = GATK4_HAPLOTYPECALLER.out.vcf
         .join(GATK4_HAPLOTYPECALLER.out.tbi)
-        .map { meta, vcf, tbi -> tuple(meta.interval_name, vcf, tbi) }
-
-    // Key intervals by interval_name
-    ch_intervals_keyed = intervals.map { meta, bed, num_intervals ->
-        tuple(meta.interval_name, bed, num_intervals)
-    }
+        .map { meta, vcf, tbi ->
+            def key = meta + [ id: meta.interval_name ] - meta.subMap('RGID', 'RGPU', 'RGLB', 'RGSM', 'RGPL', 'single_end', 'num_intervals')
+            tuple(key, vcf, tbi)
+        }
 
     // Prepare GenomicsDBImport input by grouping GVCFs by interval_name
     ch_gdb_input = ch_gvcfs
         .groupTuple()
-        .join(ch_intervals_keyed)
-        .map { interval_name, vcfs, tbis, bed, _num_intervals ->
-            def meta = [id: "joint_${interval_name}", interval_name: interval_name]
+        .join(intervals)
+        .map { meta, vcfs, tbis, bed, _num_intervals ->
+            def new_meta = meta + [id: meta.interval_name + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + "_joint"]
             tuple(
-                meta,
+                new_meta,
                 vcfs,
                 tbis,
                 bed,
@@ -89,7 +108,7 @@ workflow CALL_VARIANTS_GATK {
     // Sort each interval VCF before merging
     ch_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
         .map { meta, vcf ->
-            def new_meta = meta + [ id: "${meta.id}.sorted" ] + [ variantcaller: 'gatk' ]
+            def new_meta = meta + [ id: "${meta.id}.sorted" ]
             tuple(new_meta, vcf)
         }
 
@@ -98,49 +117,20 @@ workflow CALL_VARIANTS_GATK {
 
     // Collect sorted VCFs into one tuple for merging
     ch_merge_vcfs = BCFTOOLS_SORT.out.vcf
-        .map { _meta, vcf -> vcf }
-        .collect()
-        .map { vcfs ->
-            def new_meta = [id: "joint_merged", variantcaller: 'gatk']
-            tuple(new_meta, vcfs)
+        .map { meta, vcf ->
+            def new_id = "merged" + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name')
+            tuple(new_meta, vcf)
         }
+        .groupTuple()
 
     // Merge all intervals into one VCF
     GATK4_MERGEVCFS(ch_merge_vcfs, dict)
     versions = versions.mix(GATK4_MERGEVCFS.out.versions)
 
-    // Extract the bootstrapping round from any CRAM meta
-    ch_bootstrap_round = cram.map { meta, _cram_file -> meta.bootstrapping_round ?: null }.first()
-
-    ch_final_vcf = GATK4_MERGEVCFS.out.vcf
-        .combine(ch_bootstrap_round)
-        .map { meta, vcf, round ->
-            if (round) {
-                def new_meta = meta + [
-                    id: meta.id + "_${round}",
-                    bootstrapping_round: round
-                ]
-                return tuple(new_meta, vcf)
-            }
-            return tuple(meta, vcf)
-        }
-
-    ch_final_tbi = GATK4_MERGEVCFS.out.tbi
-        .combine(ch_bootstrap_round)
-        .map { meta, tbi, round ->
-            if (round) {
-                def new_meta = meta + [
-                    id: meta.id + "_${round}",
-                    bootstrapping_round: round
-                ]
-                return tuple(new_meta, tbi)
-            }
-            return tuple(meta, tbi)
-        }
-
     emit:
-    vcf = ch_final_vcf
-    tbi = ch_final_tbi
+    vcf = GATK4_MERGEVCFS.out.vcf
+    tbi = GATK4_MERGEVCFS.out.tbi
     multiqc_files
     versions
 }

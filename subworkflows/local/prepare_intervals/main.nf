@@ -25,7 +25,7 @@ workflow PREPARE_INTERVALS {
     intervals_combined = BUILD_INTERVALS.out.output
     .map { meta, intervals ->
         def num_intervals = intervals.readLines().size()
-        tuple(meta, intervals, num_intervals)
+        tuple(meta + [ reference_fasta: meta.id ], intervals, num_intervals)
     }
 
     // Split intervals into separate files
@@ -38,13 +38,14 @@ workflow PREPARE_INTERVALS {
             def count = list.size()
             list.collect { bed ->
                 def contig = bed.baseName
-                def new_meta = meta + [ interval_name: contig ]
+                def fasta_file = meta.id
+                def new_meta = meta + [ id: contig ] + [ interval_name: contig ] + [ reference_fasta: fasta_file ]
                 tuple(new_meta, bed, count)
             }
         }
 
     emit:
-    intervals_combined  // [[id:'ref']],                            interval.bed, number_of_intervals]
-    intervals_split     // [[id:'ref', interval_name:'scaffold'],   interval.bed, number_of_intervals]
+    intervals_combined  // [[id:'reference_fasta', reference_fasta: 'reference_fasta']], interval.bed, number_of_intervals]
+    intervals_split     // [[id:'scaffold', interval_name:'scaffold', reference_fasta: 'reference_fasta'], interval.bed, number_of_intervals]
     versions
 }
