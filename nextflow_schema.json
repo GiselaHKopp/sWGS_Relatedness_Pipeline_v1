@@ -119,39 +119,39 @@
                 "bootstrapping_rounds": {
                     "type": ["integer", "null"],
                     "minimum": 1,
-                    "default": 2,
                     "fa_icon": "fas fa-hashtag",
                     "description": "Number of bootstrapping rounds to perform when generating a variant set.",
                     "help_text": "Ignored when known_variants_vcf is provided."
                 }
             },
-            "oneOf": [
+            "allOf": [
                 {
-                    "title": "Use provided VCF and TBI",
-                    "properties": {
-                        "known_variants_vcf": { "type": "string" },
-                        "known_variants_tbi": { "type": "string" },
-                        "bootstrapping_rounds": { "type": "null" }
+                    "if": {
+                        "properties": {
+                            "known_variants_vcf": { "type": "string" }
+                        },
+                        "required": ["known_variants_vcf"]
                     },
-                    "required": ["known_variants_vcf", "known_variants_tbi"]
+                    "then": {
+                        "properties": {
+                            "bootstrapping_rounds": { "type": "null" }
+                        }
+                    }
                 },
                 {
-                    "title": "Use provided VCF and compute TBI",
-                    "properties": {
-                        "known_variants_vcf": { "type": "string" },
-                        "known_variants_tbi": { "type": "null" },
-                        "bootstrapping_rounds": { "type": "null" }
+                    "if": {
+                        "properties": {
+                            "bootstrapping_rounds": { "type": "integer" }
+                        },
+                        "required": ["bootstrapping_rounds"]
                     },
-                    "required": ["known_variants_vcf"]
-                },
-                {
-                    "title": "Generate variant set via bootstrapping",
-                    "properties": {
-                        "known_variants_vcf": { "type": "null" },
-                        "known_variants_tbi": { "type": "null" },
-                        "bootstrapping_rounds": { "type": "integer" }
-                    },
-                    "required": ["bootstrapping_rounds"]
+                    "then": {
+                        "properties": {
+                            "known_variants_vcf": { "type": "null" },
+                            "known_variants_tbi": { "type": "null" }
+                        },
+                        "required": ["bootstrapping_rounds"]
+                    }
                 }
             ]
         },
