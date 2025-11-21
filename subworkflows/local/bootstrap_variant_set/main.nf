@@ -107,8 +107,8 @@ workflow BOOTSTRAP_VARIANT_SET {
     emit:
     cram = ch_cram_output
     crai = ch_crai_output
-    vcf  = ch_vcf_output
-    tbi  = ch_tbi_output
+    vcf  = ch_vcf_output.collect()
+    tbi  = ch_tbi_output.collect()
     multiqc_files
     versions
 }

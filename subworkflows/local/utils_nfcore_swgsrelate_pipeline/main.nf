@@ -95,7 +95,6 @@ workflow PIPELINE_INITIALISATION {
     //
     // Create channel from input file provided through params.input
     //
-
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
         .map { row ->
@@ -108,7 +107,7 @@ workflow PIPELINE_INITIALISATION {
             }
 
             // Detect SPRING vs FASTQ by file extension
-            def is_spring = file1.toString().endsWith(".spring")
+            def is_spring = file1.getName().endsWith(".spring")
 
             if (is_spring) {
                 // SPRING input

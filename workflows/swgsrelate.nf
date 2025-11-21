@@ -9,6 +9,8 @@ include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pi
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
+include { BCFTOOLS_INDEX                                   } from '../modules/nf-core/bcftools/index/main'
+
 include { BASE_QUALITY_SCORE_RECALIBRATION                 } from '../subworkflows/local/base_quality_score_recalibration'
 include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_1 } from '../subworkflows/local/bootstrap_variant_set'
 include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_2 } from '../subworkflows/local/bootstrap_variant_set'
@@ -91,10 +93,6 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(BOOTSTRAP_VARIANT_SET_1.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(BOOTSTRAP_VARIANT_SET_1.out.multiqc_files)
-    ch_cram = BOOTSTRAP_VARIANT_SET_1.out.cram
-    ch_crai = BOOTSTRAP_VARIANT_SET_1.out.crai
-    ch_vcf  = BOOTSTRAP_VARIANT_SET_1.out.vcf
-    ch_tbi  = BOOTSTRAP_VARIANT_SET_1.out.tbi
 
     //
     // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 2
@@ -104,15 +102,10 @@ workflow SWGSRELATE {
         ch_fasta_fai,
         ch_dict,
         ch_intervals_split,
-        ch_cram,
-        ch_crai,
+        BOOTSTRAP_VARIANT_SET_1.out.cram,
+        BOOTSTRAP_VARIANT_SET_1.out.crai,
         2
     )
-    ch_cram = BOOTSTRAP_VARIANT_SET_2.out.cram
-    ch_crai = BOOTSTRAP_VARIANT_SET_2.out.crai
-    ch_vcf  = BOOTSTRAP_VARIANT_SET_2.out.vcf
-    ch_tbi  = BOOTSTRAP_VARIANT_SET_2.out.tbi
-
 
     //
     // SUBWORKFLOW: BOOTSTRAP_VARIANT_SET - ROUND 3
@@ -122,21 +115,46 @@ workflow SWGSRELATE {
         ch_fasta_fai,
         ch_dict,
         ch_intervals_split,
-        ch_cram,
-        ch_crai,
+        BOOTSTRAP_VARIANT_SET_2.out.cram,
+        BOOTSTRAP_VARIANT_SET_2.out.crai,
         3
     )
-    ch_cram = BOOTSTRAP_VARIANT_SET_3.out.cram
-    ch_crai = BOOTSTRAP_VARIANT_SET_3.out.crai
-    ch_vcf  = BOOTSTRAP_VARIANT_SET_3.out.vcf
-    ch_tbi  = BOOTSTRAP_VARIANT_SET_3.out.tbi
 
-    ch_vcf = params.known_variants_vcf
-        ? channel.fromPath(params.known_variants_vcf).map { it -> [[id: 'known_variants_vcf'], it] }.collect()
-        : ch_vcf
-    ch_tbi = params.known_variants_tbi
-        ? channel.fromPath(params.known_variants_tbi).map { it -> [[id: 'known_variants_tbi'], it] }.collect()
-        : ch_tbi // add option for computing tbi from vcf if not provided
+    // Select which set of CRAM/VCF to use based on params.bootstrapping_rounds
+    def cram_channels = [
+        1: BOOTSTRAP_VARIANT_SET_1.out.cram,
+        2: BOOTSTRAP_VARIANT_SET_2.out.cram,
+        3: BOOTSTRAP_VARIANT_SET_3.out.cram
+    ]
+    def crai_channels = [
+        1: BOOTSTRAP_VARIANT_SET_1.out.crai,
+        2: BOOTSTRAP_VARIANT_SET_2.out.crai,
+        3: BOOTSTRAP_VARIANT_SET_3.out.crai
+    ]
+    def vcf_channels = [
+        1: BOOTSTRAP_VARIANT_SET_1.out.vcf,
+        2: BOOTSTRAP_VARIANT_SET_2.out.vcf,
+        3: BOOTSTRAP_VARIANT_SET_3.out.vcf
+    ]
+    def tbi_channels = [
+        1: BOOTSTRAP_VARIANT_SET_1.out.tbi,
+        2: BOOTSTRAP_VARIANT_SET_2.out.tbi,
+        3: BOOTSTRAP_VARIANT_SET_3.out.tbi
+    ]
+
+    ch_cram = cram_channels[ params.bootstrapping_rounds ] ?: ch_cram
+    ch_crai = crai_channels[ params.bootstrapping_rounds ] ?: ch_crai
+    ch_vcf  = vcf_channels[ params.bootstrapping_rounds ] ?:
+        channel.fromPath(params.known_variants_vcf)
+        .map { it -> [[id: 'known_variants_vcf'], it] }
+        .collect()
+    ch_tbi = tbi_channels[ params.bootstrapping_rounds ] ?:
+        (
+            params.known_variants_tbi
+            ? channel.fromPath(params.known_variants_tbi)
+                .map { tbi -> [ [id: 'known_variants_tbi'], tbi ] }
+            : BCFTOOLS_INDEX(ch_vcf).out.tbi
+        ).collect()
 
     ch_cram.dump(tag: 'Final CRAM files')
     ch_crai.dump(tag: 'Final CRI files')
