@@ -142,26 +142,22 @@ workflow SWGSRELATE {
         3: BOOTSTRAP_VARIANT_SET_3.out.tbi
     ]
 
-    ch_cram = cram_channels[ params.bootstrapping_rounds ] ?: ch_cram
-    ch_crai = crai_channels[ params.bootstrapping_rounds ] ?: ch_crai
-    ch_vcf  = vcf_channels[ params.bootstrapping_rounds ] ?:
-        channel.fromPath(params.known_variants_vcf)
+    ch_cram = params.known_variants_vcf ? ch_cram : cram_channels[ params.bootstrapping_rounds ]
+    ch_crai = params.known_variants_vcf ? ch_crai : crai_channels[ params.bootstrapping_rounds ]
+    ch_vcf  = params.known_variants_vcf ? channel.fromPath(params.known_variants_vcf)
         .map { it -> [[id: 'known_variants_vcf'], it] }
         .collect()
-    ch_tbi = tbi_channels[ params.bootstrapping_rounds ] ?:
-        (
-            params.known_variants_tbi
-            ? channel.fromPath(params.known_variants_tbi)
-                .map { tbi -> [ [id: 'known_variants_tbi'], tbi ] }
-            : BCFTOOLS_INDEX(ch_vcf).out.tbi
-        ).collect()
+        :
+        vcf_channels[ params.bootstrapping_rounds ]
+    ch_tbi = params.known_variants_vcf ? (params.known_variants_tbi ? channel.fromPath(params.known_variants_tbi)
+        .map { tbi -> [ [id: 'known_variants_tbi'], tbi ] }.collect()
+        : BCFTOOLS_INDEX(ch_vcf).out.tbi.collect())
+        :
+        tbi_channels[ params.bootstrapping_rounds ]
 
-    ch_cram.dump(tag: 'Final CRAM files')
-    ch_crai.dump(tag: 'Final CRI files')
-    ch_vcf.dump(tag: 'Final VCF files')
-    ch_tbi.dump(tag: 'Final TBI files')
 
-/*
+
+
     //
     // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION
     //
@@ -177,8 +173,13 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
-    ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.cram
-    ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.crai
+    ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram
+    ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai
+
+    ch_cram.dump(tag: 'Final CRAM files')
+    ch_crai.dump(tag: 'Final CRAI files')
+    ch_vcf.dump(tag: 'Final VCF files')
+    ch_tbi.dump(tag: 'Final TBI files')
 
     //
     // SUBWORKFLOW: CALL_VARIANTS_GATK
@@ -196,6 +197,9 @@ workflow SWGSRELATE {
     ch_vcf_gatk     = CALL_VARIANTS_GATK.out.vcf
     ch_tbi_gatk     = CALL_VARIANTS_GATK.out.tbi
 
+    ch_vcf_gatk.dump(tag: 'VCF files (gatk)')
+    ch_tbi_gatk.dump(tag: 'TBI files (gatk)')
+
     //
     // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
     //
@@ -212,6 +216,10 @@ workflow SWGSRELATE {
     ch_vcf_bcftools = CALL_VARIANTS_BCFTOOLS.out.vcf
     ch_tbi_bcftools = CALL_VARIANTS_BCFTOOLS.out.tbi
 
+    ch_vcf_bcftools.dump(tag: 'VCF files (bcftools)')
+    ch_tbi_bcftools.dump(tag: 'TBI files (bcftools)')
+
+/*
     //
     // SUBWORKFLOW: VCF_INTERSECTION
     //
@@ -226,7 +234,7 @@ workflow SWGSRELATE {
     //
     // Collate and save software versions
     //
-    def topic_versions = Channel.topic("versions")
+    def topic_versions = channel.topic("versions")
         .distinct()
         .branch { entry ->
             versions_file: entry instanceof Path

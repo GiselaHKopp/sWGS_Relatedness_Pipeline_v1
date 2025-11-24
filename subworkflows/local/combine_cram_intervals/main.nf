@@ -11,10 +11,11 @@ workflow COMBINE_CRAM_INTERVALS {
     main:
 
     // Combine CRAM with intervals
-    cram.combine(intervals)
+    cram
+    .combine(intervals)
     .map { cram_meta, cram_file, interval_meta, interval_file, num_intervals ->
-        // Construct new ID: sampleID_intervalName_[bootstrappingRound]
-        def new_id = "${cram_meta.id}_${interval_meta.interval_name}" + (cram_meta.bootstrapping_round ? "_${cram_meta.bootstrapping_round}" : "")
+        // Construct new ID: sampleID_intervalName
+        def new_id = "${cram_meta.id}_${interval_meta.interval_name}"
 
         // Merge metadata and overwrite id
         def meta = cram_meta + interval_meta + [ id: new_id ] + [ num_intervals: num_intervals ]

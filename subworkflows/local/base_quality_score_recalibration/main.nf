@@ -40,25 +40,25 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
             def new_id = meta.id + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
             def new_meta = meta + [ id: new_id ]
             tuple(new_meta, cram_file, crai_file, interval_file)
-        }.dump(tag: 'BQSR (combined_cram_crai_intervals)')
+        }//.dump(tag: 'BQSR (combined_cram_crai_intervals)')
         .set { combined_cram_crai_intervals }
 
     // Run BaseRecalibrator
     CRAM_BASERECALIBRATOR(fasta, fai, dict, combined_cram_crai_intervals, vcf, tbi)
     versions = versions.mix(CRAM_BASERECALIBRATOR.out.versions)
 
-    CRAM_BASERECALIBRATOR.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr)')
+    CRAM_BASERECALIBRATOR.out.table_bqsr//.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr)')
 
     // Combine CRAM with BQSR table
     ch_cram_with_table = combined_cram_crai_intervals
-        .combine(CRAM_BASERECALIBRATOR.out.table_bqsr).dump(tag: 'BQSR (combined_cram_crai_intervals.combine())')
+        .combine(CRAM_BASERECALIBRATOR.out.table_bqsr)//.dump(tag: 'BQSR (combined_cram_crai_intervals.combine())')
         .filter { meta_cc, _cram_file, _crai_file, _interval_file, meta_tab, _table ->
             // only keep pairs where sample IDs match
             meta_cc.RGSM == meta_tab.RGSM
-        }.dump(tag: 'BQSR (combined_cram_crai_intervals.combine().filter())')
+        }//.dump(tag: 'BQSR (combined_cram_crai_intervals.combine().filter())')
         .map { meta_cram, cram_file, crai_file, interval_file, _meta_table, table ->
             tuple(meta_cram, cram_file, crai_file, table, interval_file)
-        }.dump(tag: 'BQSR (ch_cram_with_table)')
+        }//.dump(tag: 'BQSR (ch_cram_with_table)')
 
     // Run ApplyBQSR
     GATK4_APPLYBQSR(
@@ -121,7 +121,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     // Merge recalibrated CRAMs if needed
     ch_cram_branch = GATK4_APPLYBQSR.out.cram
         .map{ meta, cram_file ->
-            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + "_recalibrated"
             def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name')
             tuple(new_meta, cram_file)
         }
@@ -143,12 +143,9 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     // Mix intervals and no_intervals channels together
     ch_recalibrated_cram = SAMTOOLS_MERGE.out.cram.mix(ch_cram_branch.single)
         .map{ meta, cram_file ->
-            // Use sample name as key, ensure num_intervals is available
-            def key = meta.RGSM ?: meta.id.split('_')[0]
-
             // Remove interval_name from meta in order to group by sample only
-            tuple(meta - meta.subMap('interval_name') - meta.subMap('num_intervals') + [ id: key ], cram_file)
-        }
+            tuple(meta - meta.subMap('interval_name', 'num_intervals'), cram_file)
+        }//.dump(tag: 'BQSR (ch_recalibrated_cram)')
 
     // Index CRAM
     SAMTOOLS_INDEX(ch_recalibrated_cram)
