@@ -180,7 +180,7 @@ workflow SWGSRELATE {
     ch_crai.dump(tag: 'Final CRAI files')
     ch_vcf.dump(tag: 'Final VCF files')
     ch_tbi.dump(tag: 'Final TBI files')
-
+/*
     //
     // SUBWORKFLOW: CALL_VARIANTS_GATK
     //
@@ -199,7 +199,7 @@ workflow SWGSRELATE {
 
     ch_vcf_gatk.dump(tag: 'VCF files (gatk)')
     ch_tbi_gatk.dump(tag: 'TBI files (gatk)')
-
+*/
     //
     // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
     //
@@ -214,10 +214,10 @@ workflow SWGSRELATE {
     ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
     ch_vcf_bcftools = CALL_VARIANTS_BCFTOOLS.out.vcf
-    ch_tbi_bcftools = CALL_VARIANTS_BCFTOOLS.out.tbi
+    //ch_tbi_bcftools = CALL_VARIANTS_BCFTOOLS.out.tbi
 
     ch_vcf_bcftools.dump(tag: 'VCF files (bcftools)')
-    ch_tbi_bcftools.dump(tag: 'TBI files (bcftools)')
+    //ch_tbi_bcftools.dump(tag: 'TBI files (bcftools)')
 
 /*
     //

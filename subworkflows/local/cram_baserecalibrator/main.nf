@@ -29,8 +29,8 @@ workflow CRAM_BASERECALIBRATOR {
         fasta,
         fai,
         dict,
-        vcf.map { meta, files -> [[id:'known_sites'], files] },
-        tbi.map { meta, files -> [[id:'known_sites'], files] }
+        vcf.map { _meta, files -> [[id:'known_sites'], files] },
+        tbi.map { _meta, files -> [[id:'known_sites'], files] }
     )
     versions = versions.mix(GATK4_BASERECALIBRATOR.out.versions)
 
