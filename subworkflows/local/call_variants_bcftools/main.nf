@@ -3,9 +3,11 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { BCFTOOLS_MPILEUP } from '../../../modules/local/bcftools/mpileup/main'
-include { GATK4_MERGEVCFS  } from '../../../modules/nf-core/gatk4/mergevcfs'
-include { SAMTOOLS_CONVERT } from '../../../modules/nf-core/samtools/convert/main'
+include { BCFTOOLS_CALL                      } from '../../../modules/local/bcftools/call/main'
+include { BCFTOOLS_CONCAT                    } from '../../../modules/nf-core/bcftools/concat/main'
+include { BCFTOOLS_MPILEUP                   } from '../../../modules/local/bcftools/mpileup/main'
+include { GATK4_MERGEVCFS                    } from '../../../modules/nf-core/gatk4/mergevcfs'
+include { SAMTOOLS_CONVERT                   } from '../../../modules/nf-core/samtools/convert/main'
 
 include { COMBINE_CRAM_INTERVALS } from '../combine_cram_intervals'
 
@@ -53,30 +55,68 @@ workflow CALL_VARIANTS_BCFTOOLS {
     versions = versions.mix(SAMTOOLS_CONVERT.out.versions)
 
     // Collect a list of all BAM files
-    ch_bams = SAMTOOLS_CONVERT.out.bam.dump(tag: 'CALL_VARIANTS_BCFTOOLS (SAMTOOLS_CONVERT.out.bam)')
-        .map { _meta, bam -> file(bam) }.dump(tag: 'CALL_VARIANTS_BCFTOOLS (SAMTOOLS_CONVERT.out.map())')
-        .collect().dump(tag: 'CALL_VARIANTS_BCFTOOLS (SAMTOOLS_CONVERT.out.map().collect())')
+    ch_bams = SAMTOOLS_CONVERT.out.bam
+        .map { _meta, bam_file -> bam_file }
+        .collect()
+        .map { bam_list -> [bam_list]}
 
     ch_intervals = intervals
         .map { meta, interval_file, _num_intervals ->
-            tuple(meta, interval_file)
-        }.dump(tag: 'CALL_VARIANTS_BCFTOOLS (ch_intervals)')
+            def new_id = meta.id + ".mpileup"
+            def new_meta = meta + [id: new_id]
+            tuple(new_meta, interval_file)
+        }
+
+    ch_mpileup_input = ch_intervals
+        .combine(ch_bams)
 
     // Run Bcftools mpileup
     keep_bcftools_mpileup = false
-    BCFTOOLS_MPILEUP(ch_intervals, ch_bams, fasta, keep_bcftools_mpileup)
+    BCFTOOLS_MPILEUP(ch_mpileup_input, fasta, keep_bcftools_mpileup)
     versions = versions.mix(BCFTOOLS_MPILEUP.out.versions)
 
-    // Figuring out if there is one or more vcf(s) from the same sample
-    vcf_mpileup = BCFTOOLS_MPILEUP.out.vcf.dump(tag: 'CALL_VARIANTS_BCFTOOLS (BCFTOOLS_MPILEUP.out.vcf)')
-        .branch { tuple ->
-            single: tuple[0].num_intervals <= 1
-            multiple: tuple[0].num_intervals > 1
+    ch_call_input = BCFTOOLS_MPILEUP.out.vcf
+        .map { meta, vcf_file ->
+            def new_meta = meta + [id: meta.interval_name]
+            tuple(new_meta, vcf_file)
+        }
+        .join(intervals)
+        .map { meta, vcf_file, interval_file, _num_intervals ->
+            def new_id = meta.interval_name + ".called"
+            def new_meta = meta + [id: new_id]
+            tuple(new_meta, vcf_file, interval_file)
         }
 
+    // Run Bcftools call
+    BCFTOOLS_CALL(ch_call_input)
+    versions = versions.mix(BCFTOOLS_CALL.out.versions)
+
+    vcf_list = BCFTOOLS_CALL.out.vcf
+        .map { meta, vcf_file ->
+            def new_id = "called_variants" + ".${meta.variantcaller}"
+            def new_meta = meta + [id: new_id] - meta.subMap('interval_name')
+            tuple(new_meta, vcf_file)
+        }
+        .groupTuple()
+
+    index_list = BCFTOOLS_CALL.out.tbi
+        .map { meta, vcf_file ->
+            def new_id = "called_variants" + ".${meta.variantcaller}"
+            def new_meta = meta + [id: new_id] - meta.subMap('interval_name')
+            tuple(new_meta, vcf_file)
+        }
+        .groupTuple()
+
+    ch_concat_input = vcf_list
+        .join(index_list)
+
+    // Run Bcftools concat
+    BCFTOOLS_CONCAT(ch_concat_input)
+    versions = versions.mix(BCFTOOLS_CONCAT.out.versions)
+
     emit:
-    //vcf = vcf_mpileup.multiple
-    vcf = BCFTOOLS_MPILEUP.out.vcf
+    vcf = BCFTOOLS_CONCAT.out.vcf
+    tbi = BCFTOOLS_CONCAT.out.tbi
     multiqc_files
     versions
 }

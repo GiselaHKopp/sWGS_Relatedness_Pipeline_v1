@@ -118,7 +118,7 @@ workflow CALL_VARIANTS_GATK {
     // Collect sorted VCFs into one tuple for merging
     ch_merge_vcfs = BCFTOOLS_SORT.out.vcf
         .map { meta, vcf ->
-            def new_id = "merged" + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + ".${meta.variantcaller}"
+            def new_id = "called_variants" + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + ".${meta.variantcaller}"
             def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name')
             tuple(new_meta, vcf)
         }

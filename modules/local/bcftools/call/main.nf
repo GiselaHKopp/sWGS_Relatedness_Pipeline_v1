@@ -1,4 +1,4 @@
-process BCFTOOLS_MPILEUP {
+process BCFTOOLS_CALL {
     tag "$meta.id"
     label 'process_medium'
 
@@ -8,15 +8,12 @@ process BCFTOOLS_MPILEUP {
         'community.wave.seqera.io/library/bcftools_htslib:0a3fa2654b52006f' }"
 
     input:
-    tuple val(meta),  path(intervals), path(bam)
-    tuple val(meta2), path(fasta)
-    val save_mpileup   // boolean
+    tuple val(meta), path(vcf), path(intervals)
 
     output:
     tuple val(meta), path("${prefix}.${extension}")    , emit: vcf, optional: true
     tuple val(meta), path("${prefix}.${extension}.tbi"), emit: tbi, optional: true
     tuple val(meta), path("${prefix}.${extension}.csi"), emit: csi, optional: true
-    tuple val(meta), path("${meta.id}.mpileup.gz")     , emit: raw_mpileup, optional: true
     path "versions.yml"                                , emit: versions
 
     when:
@@ -26,11 +23,6 @@ process BCFTOOLS_MPILEUP {
     def args = task.ext.args ?: ''
     prefix   = task.ext.prefix ?: "${meta.id}"
     def intervalsOpt = intervals ? "-T ${intervals}" : ""
-    //def bams = bam.findAll { file -> !(file instanceof List) }.collect()
-
-    // Optional saving of the raw textual mpileup
-    def raw_mpileup_cmd = save_mpileup ? "| tee ${prefix}.mpileup" : ""
-    def compress_raw_mpileup = save_mpileup ? "bgzip -f ${prefix}.mpileup" : ""
 
     extension = args.contains("--output-type b") || args.contains("-Ob") || args.contains("-O b") ? "bcf.gz" :
                 args.contains("--output-type u") || args.contains("-Ou") || args.contains("-O u") ? "bcf" :
@@ -39,15 +31,11 @@ process BCFTOOLS_MPILEUP {
                 "vcf"
 
     """
-    bcftools mpileup \
-        --fasta-re ${fasta} \
+    bcftools call \
         -o ${prefix}.${extension} \
         ${intervalsOpt} \
         ${args} \
-        ${bam} \
-        ${raw_mpileup_cmd}
-
-    ${compress_raw_mpileup}
+        ${vcf}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

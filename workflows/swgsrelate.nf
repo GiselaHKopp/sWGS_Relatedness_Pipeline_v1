@@ -176,11 +176,6 @@ workflow SWGSRELATE {
     ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram
     ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai
 
-    ch_cram.dump(tag: 'Final CRAM files')
-    ch_crai.dump(tag: 'Final CRAI files')
-    ch_vcf.dump(tag: 'Final VCF files')
-    ch_tbi.dump(tag: 'Final TBI files')
-/*
     //
     // SUBWORKFLOW: CALL_VARIANTS_GATK
     //
@@ -194,12 +189,7 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
-    ch_vcf_gatk     = CALL_VARIANTS_GATK.out.vcf
-    ch_tbi_gatk     = CALL_VARIANTS_GATK.out.tbi
 
-    ch_vcf_gatk.dump(tag: 'VCF files (gatk)')
-    ch_tbi_gatk.dump(tag: 'TBI files (gatk)')
-*/
     //
     // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
     //
@@ -213,21 +203,13 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
-    ch_vcf_bcftools = CALL_VARIANTS_BCFTOOLS.out.vcf
-    //ch_tbi_bcftools = CALL_VARIANTS_BCFTOOLS.out.tbi
-
-    ch_vcf_bcftools.dump(tag: 'VCF files (bcftools)')
-    //ch_tbi_bcftools.dump(tag: 'TBI files (bcftools)')
-
 /*
     //
     // SUBWORKFLOW: VCF_INTERSECTION
     //
     VCF_INTERSECTION(
-        ch_vcf_gatk,
-        ch_tbi_gatk,
-        ch_vcf_bcftools,
-        ch_tbi_bcftools
+        CALL_VARIANTS_GATK.out.vcf,
+        CALL_VARIANTS_BCFTOOLS.out.vcf
     )
     ch_versions = ch_versions.mix(VCF_INTERSECTION.out.versions)
 */
