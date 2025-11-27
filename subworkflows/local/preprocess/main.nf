@@ -57,8 +57,8 @@ workflow PREPROCESS {
     versions = versions.mix(GATK4_ADDORREPLACEREADGROUPS.out.versions)
 
     // Mark duplicates
-    markduplicates_results = GATK4_MARKDUPLICATES(GATK4_ADDORREPLACEREADGROUPS.out.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
-    versions = versions.mix(markduplicates_results.versions)
+    GATK4_MARKDUPLICATES(GATK4_ADDORREPLACEREADGROUPS.out.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
+    versions = versions.mix(GATK4_MARKDUPLICATES.out.versions)
     multiqc_files = multiqc_files.mix(GATK4_MARKDUPLICATES.out.metrics.map { tuple -> tuple[1] })
 /*
     // Preseq analyses

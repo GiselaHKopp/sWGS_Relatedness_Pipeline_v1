@@ -6,7 +6,6 @@
 include { BCFTOOLS_CALL                      } from '../../../modules/local/bcftools/call/main'
 include { BCFTOOLS_CONCAT                    } from '../../../modules/nf-core/bcftools/concat/main'
 include { BCFTOOLS_MPILEUP                   } from '../../../modules/local/bcftools/mpileup/main'
-include { GATK4_MERGEVCFS                    } from '../../../modules/nf-core/gatk4/mergevcfs'
 include { SAMTOOLS_CONVERT                   } from '../../../modules/nf-core/samtools/convert/main'
 
 include { COMBINE_CRAM_INTERVALS } from '../combine_cram_intervals'

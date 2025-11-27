@@ -95,6 +95,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         vcf.map{ _meta, files -> [['id' : 'known_sites'], files]},
         tbi.map{ _meta, files -> [['id' : 'known_sites'], files]}
     )
+    versions = versions.mix(CRAM_BASERECALIBRATOR_SECOND_PASS.out.versions)
 
     ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr) ')
         .map { meta, table ->

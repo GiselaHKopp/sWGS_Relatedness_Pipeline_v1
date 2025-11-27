@@ -3,7 +3,6 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { GATK4_MERGEVCFS         } from '../../../modules/nf-core/gatk4/mergevcfs'
 include { GATK4_SELECTVARIANTS    } from '../../../modules/nf-core/gatk4/selectvariants'
 include { GATK4_VARIANTFILTRATION } from '../../../modules/nf-core/gatk4/variantfiltration'
 
