@@ -155,9 +155,6 @@ workflow SWGSRELATE {
         :
         tbi_channels[ params.bootstrapping_rounds ]
 
-
-
-
     //
     // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION
     //
@@ -203,7 +200,10 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
-/*
+
+    CALL_VARIANTS_GATK.out.vcf.dump(tag: 'SWGSRELATE (CALL_VARIANTS_GATK.out.vcf)')
+    CALL_VARIANTS_BCFTOOLS.out.vcf.dump(tag: 'SWGSRELATE (CALL_VARIANTS_BCFTOOLS.out.vcf)')
+
     //
     // SUBWORKFLOW: VCF_INTERSECTION
     //
@@ -212,7 +212,7 @@ workflow SWGSRELATE {
         CALL_VARIANTS_BCFTOOLS.out.vcf
     )
     ch_versions = ch_versions.mix(VCF_INTERSECTION.out.versions)
-*/
+
     //
     // Collate and save software versions
     //

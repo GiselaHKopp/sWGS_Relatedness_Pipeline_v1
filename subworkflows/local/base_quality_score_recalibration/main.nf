@@ -144,7 +144,6 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     // Mix intervals and no_intervals channels together
     ch_recalibrated_cram = SAMTOOLS_MERGE.out.cram.mix(ch_cram_branch.single)
         .map{ meta, cram_file ->
-            // Remove interval_name from meta in order to group by sample only
             tuple(meta - meta.subMap('interval_name', 'num_intervals'), cram_file)
         }//.dump(tag: 'BQSR (ch_recalibrated_cram)')
 
@@ -152,9 +151,23 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     SAMTOOLS_INDEX(ch_recalibrated_cram)
     versions = versions.mix(SAMTOOLS_INDEX.out.versions)
 
+    // Remove'recalibrated' from ID
+    ch_recalibrated_cram
+        .map { meta, cram_file ->
+            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            tuple(meta + [id: new_id], cram_file)
+        }
+
+    // Remove'recalibrated' from ID
+    ch_recalibrated_crai = SAMTOOLS_INDEX.out.crai
+        .map { meta, crai_file ->
+            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            tuple(meta + [id: new_id], crai_file)
+        }
+
     emit:
     recalibrated_cram = ch_recalibrated_cram
-    recalibrated_crai = SAMTOOLS_INDEX.out.crai
+    recalibrated_crai = ch_recalibrated_crai
     multiqc_files
     versions
 }

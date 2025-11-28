@@ -54,7 +54,7 @@ workflow CALL_VARIANTS_GATK {
     COMBINE_CRAM_CRAI_INTERVALS(intervals, cram, crai)
 
     // Prepare HaplotypeCaller input
-    ch_haplotypecaller_input = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
+    ch_haplotypecaller_input = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals.dump(tag: 'CALL_VARIANTS_GATK (COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals)')
         .map { meta, cram_file, crai_file, interval_file ->
             def new_id = meta.id + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + "_${meta.variantcaller}"
             def new_meta = meta + [ id: new_id ]
