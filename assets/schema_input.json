@@ -41,6 +41,30 @@
                 "pattern": "^\\S+\\.f(ast)?q\\.gz\\.spring$",
                 "errorMessage": "SPRING R2 must have extension '.fq.gz.spring' or '.fastq.gz.spring'"
             },
+            "cram": {
+                "type": "string",
+                "format": "file-path",
+                "pattern": "^\\S+\\.cram$",
+                "exists": true
+            },
+            "crai": {
+                "type": "string",
+                "format": "file-path",
+                "pattern": "^\\S+\\.crai$",
+                "exists": true
+            },
+            "bam": {
+                "type": "string",
+                "format": "file-path",
+                "pattern": "^\\S+\\.bam$",
+                "exists": true
+            },
+            "bai": {
+                "type": "string",
+                "format": "file-path",
+                "pattern": "^\\S+\\.bai$",
+                "exists": true
+            },
             "RGID": {
                 "type": ["string", "integer"],
                 "meta": ["RGID"],
@@ -54,8 +78,15 @@
         "required": ["sample"],
         "dependentRequired": {
             "fastq_2": ["fastq_1"],
-            "spring_2": ["spring_1"]
+            "spring_2": ["spring_1"],
+            "crai": ["cram"],
+            "bai": ["bam"]
         },
-        "anyOf": [{ "required": ["fastq_1"] }, { "required": ["spring_1"] }]
+        "anyOf": [
+            { "required": ["fastq_1"] },
+            { "required": ["spring_1"] },
+            { "required": ["bam"] },
+            { "required": ["cram"] }
+        ]
     }
 }
