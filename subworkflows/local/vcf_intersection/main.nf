@@ -74,17 +74,10 @@ workflow VCF_INTERSECTION_THINNING {
             passthrough: !need_mito_filter
         }
 
-    // Normalise param
-    def include_scaffolds = params.include_mito_scaffolds instanceof String
-        ? params.include_mito_scaffolds.split(',')*.trim()
-        : params.include_mito_scaffolds instanceof List
-            ? params.include_mito_scaffolds
-            : channel.empty()
-    def exclude_scaffolds = params.exclude_mito_scaffolds instanceof String
-        ? params.exclude_mito_scaffolds.split(',')*.trim()
-        : params.exclude_mito_scaffolds instanceof List
-            ? params.exclude_mito_scaffolds
-            : channel.empty()
+    def include_scaffolds = normalize_scaffold_param(params.include_mito_scaffolds)
+    def exclude_scaffolds = normalize_scaffold_param(params.exclude_mito_scaffolds)
+    include_ch = include_scaffolds ? channel.value(include_scaffolds) : channel.empty()
+    exclude_ch = exclude_scaffolds ? channel.value(exclude_scaffolds) : channel.empty()
 
     // Make mito BED for inclusion
     bed_include = intervals
@@ -92,7 +85,7 @@ workflow VCF_INTERSECTION_THINNING {
             tuple(meta + [id: "include_mito_scaffolds"], bed_file)
         }
     MAKE_MITO_INCLUDE_BED(
-        include_scaffolds,
+        include_ch,
         bed_include
     )
 
@@ -102,10 +95,9 @@ workflow VCF_INTERSECTION_THINNING {
             tuple(meta + [id: "exclude_mito_scaffolds"], bed_file)
         }
     MAKE_MITO_EXCLUDE_BED(
-        exclude_scaffolds,
+        exclude_ch,
         bed_exclude
     )
-    MAKE_MITO_EXCLUDE_BED.out.bed
 
     bed = MAKE_MITO_INCLUDE_BED.out.bed
         .mix(MAKE_MITO_EXCLUDE_BED.out.bed)
@@ -139,4 +131,35 @@ workflow VCF_INTERSECTION_THINNING {
     emit:
     intersection = VCFTOOLS_THIN.out.vcf
     versions
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FUNCTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+def normalize_scaffold_param(param) {
+    if (!param)
+        return []
+
+    // CASE 1: Array of strings
+    if (param instanceof List)
+        return param*.trim()
+
+    // CASE 2: Single string
+    if (param instanceof String) {
+        // CASE 2a: a single string
+        def f = file(param)
+        if (f.exists()) {
+            return f.readLines()
+                .findAll { tuple -> tuple && !tuple.startsWith("#") }
+                .collect { tuple -> tuple.trim().tokenize()[0] }
+        }
+
+        // CASE 2b: a single string
+        return [param.trim()]
+    }
+
+    return []
 }
