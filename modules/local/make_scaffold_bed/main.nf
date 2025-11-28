@@ -1,4 +1,4 @@
-process MAKE_MITO_BED {
+process MAKE_SCAFFOLD_BED {
     tag "$meta.id"
     label 'process_single'
 

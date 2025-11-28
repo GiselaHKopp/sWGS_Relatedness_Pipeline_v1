@@ -20,7 +20,7 @@ include { CALL_VARIANTS_GATK                               } from '../subworkflo
 include { PREPARE_GENOME                                   } from '../subworkflows/local/prepare_genome'
 include { PREPARE_INTERVALS                                } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS                                       } from '../subworkflows/local/preprocess'
-include { VCF_INTERSECTION_THINNING                        } from '../subworkflows/local/vcf_intersection'
+include { VCF_INTERSECTION_THINNING                        } from '../subworkflows/local/vcf_intersection_thinning'
 
 
 /*

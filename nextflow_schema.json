@@ -124,18 +124,18 @@
                     "description": "Number of bootstrapping rounds to perform when generating a variant set.",
                     "help_text": "Ignored when known_variants_vcf is provided."
                 },
-                "include_mito_scaffolds": {
+                "include_scaffolds": {
                     "type": ["string", "array", "null"],
                     "items": { "type": "string" },
                     "fa_icon": "fas fa-check",
                     "description": "List of scaffolds (e.g., chromosome or contig names) to include using vcftools. Can be passed as single string, array of strings, path to text file (including .bed). Leave empty to choose all by default.",
                     "help_text": "Example: [\"chrM\", \"MT\", \"chrUn_Mito_1\"]"
                 },
-                "exclude_mito_scaffolds": {
+                "exclude_scaffolds": {
                     "type": ["string", "array", "null"],
                     "items": { "type": "string" },
                     "fa_icon": "fas fa-ban",
-                    "description": "List of scaffolds (e.g., chromosome or contig names) to exclude using vcftools. Can be passed as single string, array of strings, path to text file (including .bed). Leave empty to disable mitochondrial exclusion.",
+                    "description": "List of scaffolds (e.g., chromosome or contig names) to exclude using vcftools. Can be passed as single string, array of strings, path to text file (including .bed). Leave empty to disable exclusion.",
                     "help_text": "Example: [\"chrM\", \"MT\", \"chrUn_Mito_1\"]"
                 }
             },
@@ -171,15 +171,15 @@
                 {
                     "if": {
                         "properties": {
-                            "include_mito_scaffolds": {
+                            "include_scaffolds": {
                                 "not": { "type": "null" }
                             }
                         },
-                        "required": ["include_mito_scaffolds"]
+                        "required": ["include_scaffolds"]
                     },
                     "then": {
                         "properties": {
-                            "exclude_mito_scaffolds": {
+                            "exclude_scaffolds": {
                                 "type": "null"
                             }
                         }
@@ -188,15 +188,15 @@
                 {
                     "if": {
                         "properties": {
-                            "exclude_mito_scaffolds": {
+                            "exclude_scaffolds": {
                                 "not": { "type": "null" }
                             }
                         },
-                        "required": ["exclude_mito_scaffolds"]
+                        "required": ["exclude_scaffolds"]
                     },
                     "then": {
                         "properties": {
-                            "include_mito_scaffolds": {
+                            "include_scaffolds": {
                                 "type": "null"
                             }
                         }
