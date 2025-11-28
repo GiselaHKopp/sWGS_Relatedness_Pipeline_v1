@@ -119,9 +119,24 @@
                 "bootstrapping_rounds": {
                     "type": ["integer", "null"],
                     "minimum": 1,
-                    "fa_icon": "fas fa-hashtag",
+                    "maximum": 3,
+                    "fa_icon": "fas fa-arrows-spin",
                     "description": "Number of bootstrapping rounds to perform when generating a variant set.",
                     "help_text": "Ignored when known_variants_vcf is provided."
+                },
+                "include_mito_scaffolds": {
+                    "type": ["array", "null"],
+                    "items": { "type": "string" },
+                    "fa_icon": "fas fa-check",
+                    "description": "List of scaffolds (e.g., chromosome or contig names) to include using vcftools. Leave empty to choose all by default.",
+                    "help_text": "Example: [\"chrM\", \"MT\", \"chrUn_Mito_1\"]"
+                },
+                "exclude_mito_scaffolds": {
+                    "type": ["array", "null"],
+                    "items": { "type": "string" },
+                    "fa_icon": "fas fa-ban",
+                    "description": "List of scaffolds (e.g., chromosome or contig names) to exclude using vcftools. Leave empty to disable mitochondrial exclusion.",
+                    "help_text": "Example: [\"chrM\", \"MT\", \"chrUn_Mito_1\"]"
                 }
             },
             "allOf": [
@@ -151,6 +166,46 @@
                             "known_variants_tbi": { "type": "null" }
                         },
                         "required": ["bootstrapping_rounds"]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "include_mito_scaffolds": {
+                                "type": "array",
+                                "minItems": 1
+                            }
+                        },
+                        "required": ["include_mito_scaffolds"]
+                    },
+                    "then": {
+                        "properties": {
+                            "exclude_mito_scaffolds": {
+                                "type": ["array", "null"],
+                                "maxItems": 0
+                            }
+                        },
+                        "required": ["include_mito_scaffolds"]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "exclude_mito_scaffolds": {
+                                "type": "array",
+                                "minItems": 1
+                            }
+                        },
+                        "required": ["exclude_mito_scaffolds"]
+                    },
+                    "then": {
+                        "properties": {
+                            "include_mito_scaffolds": {
+                                "type": ["array", "null"],
+                                "maxItems": 0
+                            }
+                        },
+                        "required": ["exclude_mito_scaffolds"]
                     }
                 }
             ]

@@ -3,19 +3,24 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { BCFTOOLS_ISEC } from '../../../modules/nf-core/bcftools/isec'
+include { BCFTOOLS_ISEC                          } from '../../../modules/nf-core/bcftools/isec'
+include { MAKE_MITO_BED as MAKE_MITO_EXCLUDE_BED } from '../../../modules/local/make_mito_bed/'
+include { MAKE_MITO_BED as MAKE_MITO_INCLUDE_BED } from '../../../modules/local/make_mito_bed/'
+include { VCFTOOLS as VCFTOOLS_EXCLUDE           } from '../../../modules/nf-core/vcftools/'
+include { VCFTOOLS as VCFTOOLS_THIN              } from '../../../modules/nf-core/vcftools/'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow VCF_INTERSECTION {
+workflow VCF_INTERSECTION_THINNING {
     take:
-    vcf_tool1 // channel: [ meta1, vcf]
-    tbi_tool1 // channel: [ meta1, tbi]
-    vcf_tool2 // channel: [ meta2, vcf]
-    tbi_tool2 // channel: [ meta1, tbi]
+    vcf_tool1 // channel: [ meta, vcf]
+    tbi_tool1 // channel: [ meta, tbi]
+    vcf_tool2 // channel: [ meta, vcf]
+    tbi_tool2 // channel: [ meta, tbi]
+    intervals // channel: [ meta, bed, number_of_intervals]
 
     main:
     versions = channel.empty()
@@ -56,13 +61,82 @@ workflow VCF_INTERSECTION {
     versions = versions.mix(BCFTOOLS_ISEC.out.versions)
 
     // Collect intersection output
+    def has_include = params.include_mito_scaffolds
+    def has_exclude = params.exclude_mito_scaffolds
+    def need_mito_filter = has_include || has_exclude
     intersection = BCFTOOLS_ISEC.out.results
         .map { meta, dir ->
             def file_common = file("${dir}/0002.vcf")
             tuple(meta, file_common)
         }
+        .branch { _tuple ->
+            filter:      need_mito_filter
+            passthrough: !need_mito_filter
+        }
+
+    // Normalise param
+    def include_scaffolds = params.include_mito_scaffolds instanceof String
+        ? params.include_mito_scaffolds.split(',')*.trim()
+        : params.include_mito_scaffolds instanceof List
+            ? params.include_mito_scaffolds
+            : channel.empty()
+    def exclude_scaffolds = params.exclude_mito_scaffolds instanceof String
+        ? params.exclude_mito_scaffolds.split(',')*.trim()
+        : params.exclude_mito_scaffolds instanceof List
+            ? params.exclude_mito_scaffolds
+            : channel.empty()
+
+    // Make mito BED for inclusion
+    bed_include = intervals
+        .map { meta, bed_file, _number_of_intervals ->
+            tuple(meta + [id: "include_mito_scaffolds"], bed_file)
+        }
+    MAKE_MITO_INCLUDE_BED(
+        include_scaffolds,
+        bed_include
+    )
+
+    // Make mito BEDfor exclusion
+    bed_exclude = intervals
+        .map { meta, bed_file, _number_of_intervals ->
+            tuple(meta + [id: "exclude_mito_scaffolds"], bed_file)
+        }
+    MAKE_MITO_EXCLUDE_BED(
+        exclude_scaffolds,
+        bed_exclude
+    )
+    MAKE_MITO_EXCLUDE_BED.out.bed
+
+    bed = MAKE_MITO_INCLUDE_BED.out.bed
+        .mix(MAKE_MITO_EXCLUDE_BED.out.bed)
+        .map { _meta, bed_file -> bed_file }.collect()
+
+    vcftools_exclude_input = intersection.filter
+        .map { meta, vcf_file ->
+            tuple(meta + [id: meta.id + "_mito_excluded"], vcf_file)
+        }
+
+    VCFTOOLS_EXCLUDE(
+        vcftools_exclude_input,
+        bed,
+        [] // diff_variant_file: unused
+    )
+
+    vcf_cleaned = VCFTOOLS_EXCLUDE.out.vcf
+        .mix(intersection.passthrough)
+
+    vcftools_thin_input = vcf_cleaned
+        .map { meta, vcf_file ->
+            tuple(meta + [id: meta.id + "_thinned"], vcf_file)
+        }
+
+    VCFTOOLS_THIN(
+        vcftools_thin_input,
+        [], // bed: unused
+        []  // diff_variant_file: unused
+    )
 
     emit:
-    intersection
+    intersection = VCFTOOLS_THIN.out.vcf
     versions
 }

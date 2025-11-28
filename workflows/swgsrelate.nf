@@ -20,7 +20,7 @@ include { CALL_VARIANTS_GATK                               } from '../subworkflo
 include { PREPARE_GENOME                                   } from '../subworkflows/local/prepare_genome'
 include { PREPARE_INTERVALS                                } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS                                       } from '../subworkflows/local/preprocess'
-include { VCF_INTERSECTION                                 } from '../subworkflows/local/vcf_intersection'
+include { VCF_INTERSECTION_THINNING                        } from '../subworkflows/local/vcf_intersection'
 
 
 /*
@@ -204,13 +204,14 @@ workflow SWGSRELATE {
     //
     // SUBWORKFLOW: VCF_INTERSECTION
     //
-    VCF_INTERSECTION(
+    VCF_INTERSECTION_THINNING(
         CALL_VARIANTS_GATK.out.vcf,
         CALL_VARIANTS_GATK.out.tbi,
         CALL_VARIANTS_BCFTOOLS.out.vcf,
-        CALL_VARIANTS_BCFTOOLS.out.tbi
+        CALL_VARIANTS_BCFTOOLS.out.tbi,
+        PREPARE_INTERVALS.out.intervals_combined
     )
-    ch_versions = ch_versions.mix(VCF_INTERSECTION.out.versions)
+    ch_versions = ch_versions.mix(VCF_INTERSECTION_THINNING.out.versions)
 
     //
     // Collate and save software versions
