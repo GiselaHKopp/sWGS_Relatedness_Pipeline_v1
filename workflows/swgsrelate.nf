@@ -201,15 +201,14 @@ workflow SWGSRELATE {
     ch_versions = ch_versions.mix(CALL_VARIANTS_BCFTOOLS.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_BCFTOOLS.out.multiqc_files)
 
-    CALL_VARIANTS_GATK.out.vcf.dump(tag: 'SWGSRELATE (CALL_VARIANTS_GATK.out.vcf)')
-    CALL_VARIANTS_BCFTOOLS.out.vcf.dump(tag: 'SWGSRELATE (CALL_VARIANTS_BCFTOOLS.out.vcf)')
-
     //
     // SUBWORKFLOW: VCF_INTERSECTION
     //
     VCF_INTERSECTION(
         CALL_VARIANTS_GATK.out.vcf,
-        CALL_VARIANTS_BCFTOOLS.out.vcf
+        CALL_VARIANTS_GATK.out.tbi,
+        CALL_VARIANTS_BCFTOOLS.out.vcf,
+        CALL_VARIANTS_BCFTOOLS.out.tbi
     )
     ch_versions = ch_versions.mix(VCF_INTERSECTION.out.versions)
 

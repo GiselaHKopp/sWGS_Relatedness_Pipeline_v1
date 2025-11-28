@@ -152,7 +152,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     versions = versions.mix(SAMTOOLS_INDEX.out.versions)
 
     // Remove'recalibrated' from ID
-    ch_recalibrated_cram
+    ch_recalibrated_cram = ch_recalibrated_cram
         .map { meta, cram_file ->
             def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
             tuple(meta + [id: new_id], cram_file)
