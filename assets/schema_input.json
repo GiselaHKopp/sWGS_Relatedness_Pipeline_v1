@@ -47,22 +47,10 @@
                 "pattern": "^\\S+\\.cram$",
                 "exists": true
             },
-            "crai": {
-                "type": "string",
-                "format": "file-path",
-                "pattern": "^\\S+\\.crai$",
-                "exists": true
-            },
             "bam": {
                 "type": "string",
                 "format": "file-path",
                 "pattern": "^\\S+\\.bam$",
-                "exists": true
-            },
-            "bai": {
-                "type": "string",
-                "format": "file-path",
-                "pattern": "^\\S+\\.bai$",
                 "exists": true
             },
             "RGID": {
@@ -78,9 +66,7 @@
         "required": ["sample"],
         "dependentRequired": {
             "fastq_2": ["fastq_1"],
-            "spring_2": ["spring_1"],
-            "crai": ["cram"],
-            "bai": ["bam"]
+            "spring_2": ["spring_1"]
         },
         "anyOf": [
             { "required": ["fastq_1"] },

@@ -97,46 +97,32 @@ workflow PIPELINE_INITIALISATION {
     //
     channel
         .fromList(samplesheetToList(params.input, "${projectDir}/assets/schema_input.json"))
-        .map { row ->
-            def meta   = row[0]
-            def file1  = row.size() > 1 ? row[1] : null
-            def file2  = row.size() > 2 ? row[2] : null
-
-            if (!file1) {
-                throw new IllegalArgumentException("Sample ${meta.id} has no input file!")
-            }
-
-            // Detect SPRING vs FASTQ by file extension
-            def is_spring = file1.getName().endsWith(".spring")
-
-            if (is_spring) {
-                // SPRING input
-                def files = file2 ? [file1, file2] : [file1]
-                return [
-                    meta.id,
-                    meta + [
-                        single_end: !file2],
-                    files
-                ]
-            }
-            else {
-                // FASTQ input
-                def files = file2 ? [file1, file2] : [file1]
-                return [
-                    meta.id,
-                    meta + [
-                        single_end: !file2],
-                    files
-                ]
-            }
+        .map {
+            meta, fastq_1, fastq_2, spring_1, spring_2, bam, cram ->
+                if (fastq_1 && !fastq_2) {
+                    return [ meta.id, meta + [ single_end:true ], [ fastq_1 ] ]
+                } else if (fastq_1 && fastq_2)
+                {
+                    return [ meta.id, meta + [ single_end:false ], [ fastq_1, fastq_2 ] ]
+                } else if (spring_1 && !spring_2) {
+                    return [ meta.id, meta + [ single_end:true ], [ spring_1 ] ]
+                } else if (spring_1 && spring_2)
+                {
+                    return [ meta.id, meta + [ single_end:false ], [ spring_1, spring_2 ] ]
+                } else if (bam) {
+                    return [ meta.id, meta, [ bam ] ]
+                }
+                else if (cram) {
+                    return [ meta.id, meta, [ cram ] ]
+                }
         }
         .groupTuple()
         .map { samplesheet ->
             validateInputSamplesheet(samplesheet)
         }
         .map {
-            meta, files ->
-                return [ meta, files.flatten() ]
+            meta, fastqs ->
+                return [ meta, fastqs.flatten() ]
         }
         .set { ch_samplesheet }
 
