@@ -8,7 +8,7 @@ process READv2 {
         'community.wave.seqera.io/library/kinship-read:2.1.1--69f4dcbacf410d9c' }"
 
     input:
-    tuple val(meta), path(tped), path(tfam)
+    tuple val(meta), path(bed), path(bim), path(fam)
 
     output:
     tuple val(meta), path("Read_Results.tsv")     , emit: tsv
@@ -20,10 +20,12 @@ process READv2 {
 
     script:
     def args   = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    //def prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = bed.getName() - ".bed"
+    println "prefix   = ${prefix}"
     """
-    READ2 \\
-        --input_file ${prefix} \\
+    kinship-read \\
+        -i ${prefix} \\
         $args \\
 
     cat <<-END_VERSIONS > versions.yml
