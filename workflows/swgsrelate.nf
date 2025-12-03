@@ -10,6 +10,7 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_swgsrelate_pipeline'
 
 include { BCFTOOLS_INDEX                                   } from '../modules/nf-core/bcftools/index/main'
+include { ANGSD_NGSRELATE                                  } from '../modules/local/angsd/ngsrelate/main'
 
 include { BASE_QUALITY_SCORE_RECALIBRATION                 } from '../subworkflows/local/base_quality_score_recalibration'
 include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_1 } from '../subworkflows/local/bootstrap_variant_set'
@@ -214,11 +215,20 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(VCF_INTERSECTION_THINNING.out.versions)
 
+/*
     //
     // SUBWORKFLOW: RELATEDNESS_READ
     //
     RELATEDNESS_READ(VCF_INTERSECTION_THINNING.out.intersection)
     ch_versions = ch_versions.mix(RELATEDNESS_READ.out.versions)
+*/
+
+    //
+    // MODULE: ANGSD_NGSRELATE
+    //
+    ANGSD_NGSRELATE(VCF_INTERSECTION_THINNING.out.intersection)
+    ch_versions = ch_versions.mix(ANGSD_NGSRELATE.out.versions)
+
 
     //
     // Collate and save software versions

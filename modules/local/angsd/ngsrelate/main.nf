@@ -18,15 +18,15 @@ process ANGSD_NGSRELATE {
     task.ext.when == null || task.ext.when
 
     script:
-    def args   = task.ext.args ?: ''
-    prefix = task.ext.prefix ?: "${meta.id}"
-    suffix = "ngsrelate.results"
+    def args = task.ext.args ?: ''
+    prefix   = task.ext.prefix ?: "${meta.id}"
+    suffix   = "ngsrelate.results"
 
     """
     ngsRelate \\
       -h ${vcf} \\
       -O ${prefix}.${suffix} \\
-      ${args}
+      ${args} \\
       -p ${task.cpus}
 
     cat <<-END_VERSIONS > versions.yml
