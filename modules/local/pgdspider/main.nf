@@ -20,10 +20,16 @@ process PGDSPIDER {
     task.ext.when == null || task.ext.when
 
     script:
-    def args   = task.ext.args ?: ''
+    def args        = task.ext.args ?: ''
+    def file_ending = args.contains("-outputformat EIGENSOFT") ? "eigenstrat" : ""
 
     """
-
+    PGDSpider2-cli \
+    -inputfile ${vcf} \
+    -inputformat VCF \
+    -outputfile ${meta.id}.${file_ending} \
+    ${args}
+    -spid ${workflow.projectDir}/assets/pgdspider_vcf_to_eigenstrat.spid
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
