@@ -8,23 +8,28 @@ process GATK4_ANALYZECOVARIATES {
         : 'community.wave.seqera.io/library/gatk4_gcnvkernel:edb12e4f0bf02cd3'}"
 
     input:
-    tuple val(meta), path(table1), path(table2)
+    tuple val(meta), path(before_table), path(after_table), path(table3)
 
     output:
-    tuple val(meta), path("*.pdf"),  emit: plots
-    tuple val(meta), path("*.csv"),  emit: data
-    path "versions.yml",             emit: versions
+    tuple val(meta), path("${meta.id}.pdf"), emit: plots
+    tuple val(meta), path("${meta.id}.csv"), emit: data
+    path "versions.yml",                     emit: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
+    def args = task.ext.args ?: ''
+    def third_table = table3 ? "-bqsr ${table3}" : ""
+
     """
     gatk AnalyzeCovariates \\
-      -before ${table1} \\
-      -after ${table2} \\
+      -before ${before_table} \\
+      -after ${after_table} \\
+      ${third_table} \\
       -csv ${meta.id}.csv \\
-      -plots ${meta.id}.pdf
+      -plots ${meta.id}.pdf \\
+      ${args}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

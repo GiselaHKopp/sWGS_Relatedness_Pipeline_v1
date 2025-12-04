@@ -173,8 +173,8 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
-    ch_cram = BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram
-    ch_crai = BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai
+    ch_cram = params.known_variants_vcf ? BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram : ch_cram
+    ch_crai = params.known_variants_vcf ? BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai : ch_crai
 
     //
     // SUBWORKFLOW: CALL_VARIANTS_GATK
@@ -216,12 +216,13 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(VCF_INTERSECTION_THINNING.out.versions)
 
+/*
     //
     // SUBWORKFLOW: RELATEDNESS_BREADR
     //
     RELATEDNESS_BREADR(VCF_INTERSECTION_THINNING.out.intersection)
     ch_versions = ch_versions.mix(RELATEDNESS_BREADR.out.versions)
-
+*/
 /*
     //
     // SUBWORKFLOW: RELATEDNESS_READ

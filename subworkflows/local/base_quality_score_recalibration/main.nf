@@ -5,13 +5,15 @@
 */
 include { GATK4_ANALYZECOVARIATES                    } from '../../../modules/local/gatk4/analyzecovariates'
 include { GATK4_APPLYBQSR                            } from '../../../modules/nf-core/gatk4/applybqsr'
+include { GATK4_GATHERBQSRREPORTS                    } from '../../../modules/nf-core/gatk4/gatherbqsrreports'
 include { SAMTOOLS_INDEX                             } from '../../../modules/nf-core/samtools/index/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_SCATTERED } from '../../../modules/nf-core/samtools/index/main'
 include { SAMTOOLS_MERGE                             } from '../../../modules/nf-core/samtools/merge/main'
 
-include { COMBINE_CRAM_CRAI_INTERVALS                                } from '../combine_cram_crai_intervals'
-include { CRAM_BASERECALIBRATOR                                      } from '../cram_baserecalibrator'
-include { CRAM_BASERECALIBRATOR as CRAM_BASERECALIBRATOR_SECOND_PASS } from '../cram_baserecalibrator'
+include { COMBINE_CRAM_CRAI_INTERVALS                                            } from '../combine_cram_crai_intervals'
+include { COMBINE_CRAM_CRAI_INTERVALS as COMBINE_CRAM_CRAI_INTERVALS_SECOND_PASS } from '../combine_cram_crai_intervals'
+include { CRAM_BASERECALIBRATOR                                                  } from '../cram_baserecalibrator'
+include { CRAM_BASERECALIBRATOR as CRAM_BASERECALIBRATOR_SECOND_PASS             } from '../cram_baserecalibrator'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -35,30 +37,27 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
 
     // Combine CRAM with intervals
     COMBINE_CRAM_CRAI_INTERVALS(intervals, cram, crai)
-    COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals
+    combined_cram_crai_intervals = COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals.dump(tag: 'BQSR (COMBINE_CRAM_CRAI_INTERVALS.out.cram_crai_intervals)')
         .map { meta, cram_file, crai_file, interval_file ->
             def new_id = meta.id + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
             def new_meta = meta + [ id: new_id ]
             tuple(new_meta, cram_file, crai_file, interval_file)
-        }//.dump(tag: 'BQSR (combined_cram_crai_intervals)')
-        .set { combined_cram_crai_intervals }
+        }.dump(tag: 'BQSR (combined_cram_crai_intervals)')
 
     // Run BaseRecalibrator
     CRAM_BASERECALIBRATOR(fasta, fai, dict, combined_cram_crai_intervals, vcf, tbi)
     versions = versions.mix(CRAM_BASERECALIBRATOR.out.versions)
 
-    CRAM_BASERECALIBRATOR.out.table_bqsr//.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr)')
-
     // Combine CRAM with BQSR table
     ch_cram_with_table = combined_cram_crai_intervals
-        .combine(CRAM_BASERECALIBRATOR.out.table_bqsr)//.dump(tag: 'BQSR (combined_cram_crai_intervals.combine())')
+        .combine(CRAM_BASERECALIBRATOR.out.table_bqsr).dump(tag: 'BQSR (combined_cram_crai_intervals.combine())')
         .filter { meta_cc, _cram_file, _crai_file, _interval_file, meta_tab, _table ->
             // only keep pairs where sample IDs match
             meta_cc.RGSM == meta_tab.RGSM
-        }//.dump(tag: 'BQSR (combined_cram_crai_intervals.combine().filter())')
+        }.dump(tag: 'BQSR (combined_cram_crai_intervals.combine().filter())')
         .map { meta_cram, cram_file, crai_file, interval_file, _meta_table, table ->
             tuple(meta_cram, cram_file, crai_file, table, interval_file)
-        }//.dump(tag: 'BQSR (ch_cram_with_table)')
+        }.dump(tag: 'BQSR (ch_cram_with_table)')
 
     // Run ApplyBQSR
     GATK4_APPLYBQSR(
@@ -69,56 +68,6 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     )
     versions = versions.mix(GATK4_APPLYBQSR.out.versions)
 
-/*
-    // TODO: Do we need quality control per-sample or per-sample-per-interval
-    // Index recalibrated CRAMs (per interval)
-    SAMTOOLS_INDEX_SCATTERED(GATK4_APPLYBQSR.out.cram)
-    versions = versions.mix(SAMTOOLS_INDEX_SCATTERED.out.versions)
-
-    SAMTOOLS_INDEX_SCATTERED.out.crai.dump(tag: 'BQSR (SAMTOOLS_INDEX_SCATTERED.out.crai)')
-
-    // Combine recalibrated CRAM with intervals for second pass
-    ch_cram_second_pass = GATK4_APPLYBQSR.out.cram.join(SAMTOOLS_INDEX_SCATTERED.out.crai).dump(tag: 'BQSR (GATK4_APPLYBQSR.out.cram.join())')
-        .combine(intervals).dump(tag: 'BQSR (GATK4_APPLYBQSR.out.cram.join().combine())')
-        .map { cram_meta, cram_file, crai_file, _interval_meta, interval_file, _num_intervals ->
-            // Change id to get distinct filenames
-            def new_meta = cram_meta + [ id: "${cram_meta.id}.after" ]
-            tuple(new_meta, cram_file, crai_file, interval_file)
-        }.dump(tag: 'BQSR (ch_cram_second_pass)')
-
-    // Run BaseRecalibrator (second pass, for quality control)
-    CRAM_BASERECALIBRATOR_SECOND_PASS(
-        fasta,
-        fai,
-        dict,
-        ch_cram_second_pass,
-        vcf.map{ _meta, files -> [['id' : 'known_sites'], files]},
-        tbi.map{ _meta, files -> [['id' : 'known_sites'], files]}
-    )
-    versions = versions.mix(CRAM_BASERECALIBRATOR_SECOND_PASS.out.versions)
-
-    ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr) ')
-        .map { meta, table ->
-            tuple(meta.RGSM ?: meta.id, [meta, table])
-        }.dump(tag: 'BQSR (ch_bqsr_first)')
-    ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr) ')
-        .map { meta, table ->
-            tuple(meta.RGSM ?: meta.id, [meta, table])
-        }.dump(tag: 'BQSR (ch_bqsr_second)')
-    ch_bqsr_tables = ch_bqsr_first
-        .join(ch_bqsr_second).dump(tag: 'BQSR (ch_bqsr_first.join(ch_bqsr_second))')
-        .map { _key, first, second ->
-            def meta = first[0]
-            def table_before = first[1]
-            def table_after  = second[1]
-
-            tuple(meta, table_before, table_after)
-        }.dump(tag: 'BQSR (ch_bqsr_tables)')
-
-    // Run AnalyzeCovariates
-    GATK4_ANALYZECOVARIATES(ch_bqsr_tables)
-    versions = versions.mix(GATK4_ANALYZECOVARIATES.out.versions)
-*/
     // Merge recalibrated CRAMs if needed
     ch_cram_branch = GATK4_APPLYBQSR.out.cram
         .map{ meta, cram_file ->
@@ -151,19 +100,61 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     SAMTOOLS_INDEX(ch_recalibrated_cram)
     versions = versions.mix(SAMTOOLS_INDEX.out.versions)
 
-    // Remove'recalibrated' from ID
+    // Remove 'recalibrated' from ID
     ch_recalibrated_cram = ch_recalibrated_cram
         .map { meta, cram_file ->
             def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
             tuple(meta + [id: new_id], cram_file)
-        }
+        }.dump(tag: 'BQSR (ch_recalibrated_cram)')
 
-    // Remove'recalibrated' from ID
+    // Remove 'recalibrated' from ID
     ch_recalibrated_crai = SAMTOOLS_INDEX.out.crai
         .map { meta, crai_file ->
             def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
             tuple(meta + [id: new_id], crai_file)
-        }
+        }.dump(tag: 'BQSR (ch_recalibrated_crai)')
+
+    // Combine CRAM with intervals for (second pass, for quality control)
+    COMBINE_CRAM_CRAI_INTERVALS_SECOND_PASS(intervals, ch_recalibrated_cram, ch_recalibrated_crai)
+
+    combined_cram_crai_intervals_second_pass = COMBINE_CRAM_CRAI_INTERVALS_SECOND_PASS.out.cram_crai_intervals.dump(tag: 'BQSR (COMBINE_CRAM_CRAI_INTERVALS_SECOND_PASS.out.cram_crai_intervals)')
+        .map { meta, cram_file, crai_file, interval_file ->
+            def new_meta = meta + [id: meta.id + "_second_pass"] + [ pass: 2 ]
+            tuple(new_meta, cram_file, crai_file, interval_file)
+        }.dump(tag: 'BQSR (combined_cram_crai_intervals_second_pass)')
+
+    // Run BaseRecalibrator (second pass, for quality control)
+    CRAM_BASERECALIBRATOR_SECOND_PASS(
+        fasta,
+        fai,
+        dict,
+        combined_cram_crai_intervals_second_pass,
+        vcf,
+        tbi
+    )
+    versions = versions.mix(CRAM_BASERECALIBRATOR_SECOND_PASS.out.versions)
+
+    ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR.out.table_bqsr) ')
+        .map { meta, table ->
+            def new_meta = [id: (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
+            tuple(new_meta, table)
+        }.dump(tag: 'BQSR (ch_bqsr_first)')
+
+    ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr.dump(tag: 'BQSR (CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr) ')
+        .map { meta, table ->
+            def new_meta = [id: (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
+            tuple(new_meta, table)
+        }.dump(tag: 'BQSR (ch_bqsr_second)')
+
+    ch_bqsr_tables = ch_bqsr_first
+        .join(ch_bqsr_second).dump(tag: 'BQSR (ch_bqsr_first.join(ch_bqsr_second))')
+        .map { meta, before_table, after_table ->
+            tuple(meta, before_table, after_table, [])
+        }.dump(tag: 'BQSR (ch_bqsr_tables)')
+
+    // Run AnalyzeCovariates
+    GATK4_ANALYZECOVARIATES(ch_bqsr_tables)
+    versions = versions.mix(GATK4_ANALYZECOVARIATES.out.versions)
 
     emit:
     recalibrated_cram = ch_recalibrated_cram
