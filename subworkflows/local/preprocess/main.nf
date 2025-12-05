@@ -70,7 +70,7 @@ workflow PREPROCESS {
     SAMTOOLS_INDEX(ch_input_branches.cram)
     versions = versions.mix(SAMTOOLS_INDEX.out.versions)
     ch_crai = GATK4_MARKDUPLICATES.out.crai.mix(SAMTOOLS_INDEX.out.crai)
-/*
+
     // Preseq analyses
     PRESEQ_CCURVE(ch_cram)
     versions = versions.mix(PRESEQ_CCURVE.out.versions)
@@ -79,11 +79,10 @@ workflow PREPROCESS {
     PRESEQ_LCEXTRAP(ch_cram)
     versions = versions.mix(PRESEQ_LCEXTRAP.out.versions)
     multiqc_files = multiqc_files.mix(PRESEQ_LCEXTRAP.out.lc_extrap.map { _meta, file -> file }).mix(PRESEQ_LCEXTRAP.out.log.map{ _meta, file -> file })
-*/
+
     // Samtools stats on final CRAMs
     ch_samstats_input = ch_cram.join(ch_crai).map { meta, cram, crai -> tuple(meta, cram, crai) }
     SAMTOOLS_STATS(ch_samstats_input, fasta)
-    versions = versions.mix(SAMTOOLS_STATS.out.versions)
     multiqc_files = multiqc_files.mix(SAMTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
 
     // Coverage calculation with mosdepth
