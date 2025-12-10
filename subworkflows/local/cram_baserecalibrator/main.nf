@@ -35,7 +35,7 @@ workflow CRAM_BASERECALIBRATOR {
     versions = versions.mix(GATK4_BASERECALIBRATOR.out.versions)
 
     // Figuring out if there is one or more table(s) from the same sample
-    ch_table_to_merge = GATK4_BASERECALIBRATOR.out.table.dump(tag: 'BQSR (GATK4_BASERECALIBRATOR.out.table)')
+    ch_table_to_merge = GATK4_BASERECALIBRATOR.out.table
         .map{ meta, table ->
             // Use sample name and bootstrapping stage as key, ensure num_intervals is available
             def sample_name = meta.RGSM ?: meta.id.split('_')[0]
@@ -43,7 +43,7 @@ workflow CRAM_BASERECALIBRATOR {
             def new_meta = meta + [id: new_id] - meta.subMap('interval_name', 'reference_fasta')
             // Remove interval_name from meta in order to group by sample only
             tuple(new_meta, table)
-        }.dump(tag: 'BQSR (GATK4_BASERECALIBRATOR.out.table.map())')
+        }
         .groupTuple()
         .branch{ tuple ->
             // Use meta.num_intervals to asses number of intervals
@@ -56,7 +56,7 @@ workflow CRAM_BASERECALIBRATOR {
     versions = versions.mix(GATK4_GATHERBQSRREPORTS.out.versions)
 
     // Mix intervals and no_intervals channels together
-    table_bqsr = GATK4_GATHERBQSRREPORTS.out.table.dump(tag: 'BQSR (GATK4_GATHERBQSRREPORTS.out.table)')
+    table_bqsr = GATK4_GATHERBQSRREPORTS.out.table
         .mix(ch_table_to_merge.single
             .map{ meta, table ->
                 [ meta, table[0] ]

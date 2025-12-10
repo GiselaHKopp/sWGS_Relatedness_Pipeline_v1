@@ -145,18 +145,25 @@ workflow SWGSRELATE {
         3: BOOTSTRAP_VARIANT_SET_3.out.tbi
     ]
 
-    ch_cram = params.known_variants_vcf ? ch_cram : cram_channels[ params.bootstrapping_rounds ]
-    ch_crai = params.known_variants_vcf ? ch_crai : crai_channels[ params.bootstrapping_rounds ]
-    ch_vcf  = params.known_variants_vcf ? channel.fromPath(params.known_variants_vcf)
-        .map { it -> [[id: 'known_variants_vcf'], it] }
-        .collect()
-        :
-        vcf_channels[ params.bootstrapping_rounds ]
-    ch_tbi = params.known_variants_vcf ? (params.known_variants_tbi ? channel.fromPath(params.known_variants_tbi)
-        .map { tbi -> [ [id: 'known_variants_tbi'], tbi ] }.collect()
-        : BCFTOOLS_INDEX(ch_vcf).out.tbi.collect())
-        :
-        tbi_channels[ params.bootstrapping_rounds ]
+    ch_cram = params.known_variants_vcf
+                ? ch_cram
+                : cram_channels[ params.bootstrapping_rounds ]
+    ch_crai = params.known_variants_vcf
+                ? ch_crai
+                : crai_channels[ params.bootstrapping_rounds ]
+    ch_vcf  = params.known_variants_vcf
+                ? channel.fromPath(params.known_variants_vcf)
+                    .map { it -> tuple([id: 'known_variants'], it) }
+                    .collect()
+                : vcf_channels[ params.bootstrapping_rounds ]
+
+    ch_tbi = params.known_variants_vcf
+                ? (params.known_variants_tbi
+                    ? channel.fromPath(params.known_variants_tbi)
+                        .map { tbi -> [ [id: 'known_variants'], tbi ] }
+                        .collect()
+                    : BCFTOOLS_INDEX(ch_vcf).tbi.collect())
+                : tbi_channels[ params.bootstrapping_rounds ]
 
     //
     // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION
@@ -173,8 +180,19 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(BASE_QUALITY_SCORE_RECALIBRATION.out.multiqc_files)
-    ch_cram = params.known_variants_vcf ? BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram : ch_cram
-    ch_crai = params.known_variants_vcf ? BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai : ch_crai
+    ch_cram = (params.known_variants_vcf && !params.skip_bqsr) ? BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_cram : ch_cram
+    ch_crai = (params.known_variants_vcf && !params.skip_bqsr) ? BASE_QUALITY_SCORE_RECALIBRATION.out.recalibrated_crai : ch_crai
+
+/*
+    ch_cram.dump(tag: 'SWGSRELATE (ch_cram) (1)')
+    ch_crai.dump(tag: 'SWGSRELATE (ch_crai) (1)')
+    ch_vcf.dump(tag: 'SWGSRELATE (ch_vcf) (1)')
+    ch_tbi.dump(tag: 'SWGSRELATE (ch_tbi) (1)')
+    ch_fasta.dump(tag: 'SWGSRELATE (ch_fasta) (1)')
+    ch_fasta_fai.dump(tag: 'SWGSRELATE (ch_fasta_fai) (1)')
+    ch_dict.dump(tag: 'SWGSRELATE (ch_dict) (1)')
+    ch_intervals_split.dump(tag: 'SWGSRELATE (ch_intervals_split) (1)')
+*/
 
     //
     // SUBWORKFLOW: CALL_VARIANTS_GATK
@@ -189,6 +207,15 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(CALL_VARIANTS_GATK.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(CALL_VARIANTS_GATK.out.multiqc_files)
+
+    ch_cram.dump(tag: 'SWGSRELATE (ch_cram) (2)')
+    ch_crai.dump(tag: 'SWGSRELATE (ch_crai) (2)')
+    ch_vcf.dump(tag: 'SWGSRELATE (ch_vcf) (2)')
+    ch_tbi.dump(tag: 'SWGSRELATE (ch_tbi) (2)')
+    ch_fasta.dump(tag: 'SWGSRELATE (ch_fasta) (2)')
+    ch_fasta_fai.dump(tag: 'SWGSRELATE (ch_fasta_fai) (2)')
+    ch_dict.dump(tag: 'SWGSRELATE (ch_dict) (2)')
+    ch_intervals_split.dump(tag: 'SWGSRELATE (ch_intervals_split) (2)')
 
     //
     // SUBWORKFLOW: CALL_VARIANTS_BCFTOOLS
@@ -237,7 +264,7 @@ workflow SWGSRELATE {
     ANGSD_NGSRELATE(VCF_INTERSECTION_THINNING.out.intersection)
     ch_versions = ch_versions.mix(ANGSD_NGSRELATE.out.versions)
 */
-
+    VCF_INTERSECTION_THINNING.out.versions.dump(tag: 'SWGSRELATE (VCF_INTERSECTION_THINNING.out.versions)')
     //
     // Collate and save software versions
     //
