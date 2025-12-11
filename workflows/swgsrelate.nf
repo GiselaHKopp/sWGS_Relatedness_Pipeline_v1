@@ -122,7 +122,9 @@ workflow SWGSRELATE {
         3
     )
 
+    //
     // Select which set of CRAM/VCF to use based on params.bootstrapping_rounds
+    //
     def cram_channels = [
         1: BOOTSTRAP_VARIANT_SET_1.out.cram,
         2: BOOTSTRAP_VARIANT_SET_2.out.cram,

@@ -21,17 +21,52 @@
 
 ## Introduction
 
-**nf-core/swgsrelate** is a bioinformatics pipeline that ...
-
-<!-- TODO nf-core:
-   Complete this sentence with a 2-3 sentence summary of what types of data the pipeline ingests, a brief overview of the
-   major pipeline sections and the types of output it produces. You're giving an overview to someone new
-   to nf-core here, in 15-20 seconds. For an example, see https://github.com/nf-core/rnaseq/blob/master/README.md#introduction
--->
+**nf-core/swgsrelate** is a bioinformatics pipeline that for estimating genetic relatedness from low-coverage whole-genome sequencing (sWGS) data. It performs read mapping, optional base quality score recalibration, variant calling with GATK and BCFtools, and downstream relatedness estimation using multiple complementary tools. For many non-model organisms, no high-confidence variant set is available. The pipeline provides an automated multi-round bootstrapping workflow to generate one. The resulting standardized outputs include genotype likelihood-based variant calls, filtered VCF files, and relatedness estimates from several independent algorithms, enabling robust inference even from very sparse sequencing data.
 
 <!-- TODO nf-core: Include a figure that guides the user through the major workflow steps. Many nf-core
      workflows use the "tube map" design for that. See https://nf-co.re/docs/guidelines/graphic_design/workflow_diagrams#examples for examples.   -->
-<!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->2. Present QC for raw reads ([`MultiQC`](http://multiqc.info/))
+<!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->
+
+The pipeline can perform the following major processing stages:
+
+1. Input parsing & metadata setup: Reads a CSV samplesheet describing the input FASTQ, SPRING or CRAM files and their read-group information.
+
+2. Reference genome preparation:
+   If not provieded, this step automatically generates:
+
+- BWA-MEM2 index files
+- FASTA index (.fai)
+- Sequence dictionary (.dict)
+
+3. Read alignment
+
+- Aligns raw FASTQ reads to the reference genome.
+- Produces sorted, indexed CRAM files with proper read-group annotations.
+
+4. If a known variant set is provided, runs Base Quality Score Recalibration.
+
+5. If no known variant set is available, the pipeline can generate one automatically via bootstrapping.
+
+- Iteratively refines and stabilises the set of high-confidence SNPs for downstream use.
+
+6. Runs Base Quality Score Recalibration if a known variant set was provided.
+
+7. Variant calling (GATK HaplotypeCaller & BCFtools)
+
+8. Performs joint variant discovery for all samples.
+
+9. Combines GATK and BCFtools results using bcftools isec to produce a conservative, high-confidence set of variants.
+
+10. Variant filtering & thinning and optional exclusion of specific scaffolds.
+
+11. Relatedness estimation (multi-tool)
+    Uses multiple complementary tools to increase robustness, depending on configuration:
+
+- READv2 (ML-based relatedness estimation for low-coverage data)
+- BREADR (R-based Bayesian relatedness inference)
+- NGSrelate/ANGSD (likelihood-based estimation directly from genotype likelihoods)
+
+12. MultiQC reporting: Aggregates quality metrics across all workflow stages into a single interactive report.
 
 ## Usage
 
@@ -39,7 +74,7 @@
 > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/usage/installation) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/usage/introduction#how-to-run-a-pipeline) with `-profile test` before running the workflow on actual data.
 
 <!-- TODO nf-core: Describe the minimum required steps to execute the pipeline, e.g. how to prepare samplesheets.
-     Explain what rows and columns represent. For instance (please edit as appropriate):
+     Explain what rows and columns represent. For instance (please edit as appropriate):-->
 
 First, prepare a samplesheet with your input data that looks as follows:
 
@@ -48,11 +83,12 @@ First, prepare a samplesheet with your input data that looks as follows:
 ```csv
 sample,fastq_1,fastq_2
 CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
+CONTROL_REP1,AEG588A1_S1_L003_R1_001.fastq.gz,AEG588A1_S1_L003_R2_001.fastq.gz
+CONTROL_REP1,AEG588A1_S1_L004_R1_001.fastq.gz,AEG588A1_S1_L004_R2_001.fastq.gz
+
 ```
 
-Each row represents a fastq file (single-end) or a pair of fastq files (paired end).
-
--->
+Each row represents a fastq file (single-end) or a pair of fastq files (paired end). Alternatively, the samplesheet can be filled with fastq files encoded in SPRING format, or the preprocessing steps can be skipped entirely when BAM or CRAM files are provided.
 
 Now, you can run the pipeline using:
 
@@ -62,8 +98,12 @@ Now, you can run the pipeline using:
 nextflow run nf-core/swgsrelate \
    -profile <docker/singularity/.../institute> \
    --input samplesheet.csv \
+   --fasta <REFGENOME>
+   --bootstrapping_rounds 1\
    --outdir <OUTDIR>
 ```
+
+> **Note:** If the parameter `--bootstrapping_rounds` is provided, it must be an integer between 0 and 3, with 0 having no effect.
 
 > [!WARNING]
 > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config files including those provided by the `-c` Nextflow option can be used to provide any configuration _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
@@ -78,11 +118,12 @@ For more details about the output files and reports, please refer to the
 
 ## Credits
 
-nf-core/swgsrelate was originally written by Thomas Isensee.
+nf-core/swgsrelate was originally written by [Thomas Isensee](https://github.com/thomasisensee). This work was carried out as part of the [bwRSE4HPC](https://www.bwrse4hpc.de/) initiative, funded by the Baden-Württemberg Ministry of Science, Research and Arts, coordinated by the Scientific Software Center (SSC) at Heidelberg University and the Scientific Computing Center (SCC) at KIT.
 
 We thank the following people for their extensive assistance in the development of this pipeline:
 
-<!-- TODO nf-core: If applicable, make list of people who have also contributed -->
+- [Gisela H. Kopp](https://github.com/GiselaHKopp)
+- Till Dorendorf
 
 ## Contributions and Support
 
