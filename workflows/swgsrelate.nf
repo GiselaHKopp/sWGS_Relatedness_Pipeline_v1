@@ -18,6 +18,7 @@ include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_2 } from '../subworkflo
 include { BOOTSTRAP_VARIANT_SET as BOOTSTRAP_VARIANT_SET_3 } from '../subworkflows/local/bootstrap_variant_set'
 include { CALL_VARIANTS_BCFTOOLS                           } from '../subworkflows/local/call_variants_bcftools'
 include { CALL_VARIANTS_GATK                               } from '../subworkflows/local/call_variants_gatk'
+include { FILTER_VARIANTS                                  } from '../subworkflows/local/filter_variants'
 include { PREPARE_GENOME                                   } from '../subworkflows/local/prepare_genome'
 include { PREPARE_INTERVALS                                } from '../subworkflows/local/prepare_intervals'
 include { PREPROCESS                                       } from '../subworkflows/local/preprocess'
@@ -165,6 +166,21 @@ workflow SWGSRELATE {
                 .collect()
             : BCFTOOLS_INDEX(ch_vcf).tbi.collect())
         : tbi_channels[ params.bootstrapping_rounds ]
+
+    //
+    // SUBWORKFLOW: FILTER_VARIANTS
+    //
+    FILTER_VARIANTS(
+        ch_fasta,
+        ch_fasta_fai,
+        ch_dict,
+        ch_vcf,
+        ch_tbi
+    )
+    ch_versions = ch_versions.mix(FILTER_VARIANTS.out.versions)
+    ch_multiqc_files = ch_multiqc_files.mix(FILTER_VARIANTS.out.multiqc_files)
+    ch_vcf = (!params.skip_filter_variants && !params.bootstrapping_rounds) ? FILTER_VARIANTS.out.vcf : ch_vcf
+    ch_tbi = (!params.skip_filter_variants && !params.bootstrapping_rounds) ? FILTER_VARIANTS.out.tbi : ch_tbi
 
     //
     // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION

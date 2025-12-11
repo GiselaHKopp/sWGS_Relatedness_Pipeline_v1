@@ -24,8 +24,18 @@ workflow FILTER_VARIANTS {
     versions = channel.empty()
     multiqc_files = channel.empty()
 
+    vcf_branches = vcf.branch {
+        filter    : !params.skip_filter_variants
+        no_filter :  params.skip_filter_variants
+    }
+
+    tbi_branches = tbi.branch {
+        filter    : !params.skip_filter_variants
+        no_filter :  params.skip_filter_variants
+    }
+
     // Filter variants to exclude low-quality calls
-    ch_filtered_input = vcf.join(tbi)
+    ch_filtered_input = vcf_branches.filter.join(tbi_branches.filter)
         .map { meta, vcf_unfiltered, tbi_unfiltered ->
             def new_meta = meta + [ id: "${meta.id}.filtered" ]
             tuple(new_meta, vcf_unfiltered, tbi_unfiltered)
@@ -43,9 +53,12 @@ workflow FILTER_VARIANTS {
     GATK4_SELECTVARIANTS(ch_selected_input)
     versions = versions.mix(GATK4_SELECTVARIANTS.out.versions)
 
+    vcf_output = vcf_branches.no_filter.mix(GATK4_SELECTVARIANTS.out.vcf)
+    tbi_output = vcf_branches.no_filter.mix(GATK4_SELECTVARIANTS.out.tbi)
+
     emit:
-    vcf = GATK4_SELECTVARIANTS.out.vcf.collect() // TODO: revise this when changing filter variants to scatter/gather approach
-    tbi = GATK4_SELECTVARIANTS.out.tbi.collect() // TODO: revise this when changing filter variants to scatter/gather approach
+    vcf = vcf_output
+    tbi = tbi_output
     multiqc_files
     versions
 }
