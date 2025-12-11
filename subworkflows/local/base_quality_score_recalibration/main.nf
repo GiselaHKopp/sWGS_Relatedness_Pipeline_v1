@@ -51,7 +51,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         .combine(CRAM_BASERECALIBRATOR.out.table_bqsr)
         .filter { meta_cc, _cram_file, _crai_file, _interval_file, meta_tab, _table ->
             // only keep pairs where sample IDs match
-            meta_cc.RGSM == meta_tab.RGSM
+            meta_cc.sample == meta_tab.sample
         }
         .map { meta_cram, cram_file, crai_file, interval_file, _meta_table, table ->
             tuple(meta_cram, cram_file, crai_file, table, interval_file)
@@ -69,7 +69,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     // Merge recalibrated CRAMs if needed
     ch_cram_branch = GATK4_APPLYBQSR.out.cram
         .map{ meta, cram_file ->
-            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + "_recalibrated"
+            def new_id = (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + "_recalibrated"
             def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name')
             tuple(new_meta, cram_file)
         }
@@ -101,14 +101,14 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     // Remove 'recalibrated' from ID
     ch_recalibrated_cram = ch_recalibrated_cram
         .map { meta, cram_file ->
-            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_id = (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
             tuple(meta + [id: new_id], cram_file)
         }
 
     // Remove 'recalibrated' from ID
     ch_recalibrated_crai = SAMTOOLS_INDEX.out.crai
         .map { meta, crai_file ->
-            def new_id = (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_id = (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
             tuple(meta + [id: new_id], crai_file)
         }
 
@@ -134,12 +134,12 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
 
     ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr
         .map { meta, table ->
-            def new_meta = [id: (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
+            def new_meta = [id: (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
             tuple(new_meta, table)
         }
     ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr
         .map { meta, table ->
-            def new_meta = [id: (meta.RGSM ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
+            def new_meta = [id: (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
             tuple(new_meta, table)
         }
     ch_bqsr_tables = ch_bqsr_first

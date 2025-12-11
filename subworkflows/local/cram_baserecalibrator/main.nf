@@ -38,7 +38,7 @@ workflow CRAM_BASERECALIBRATOR {
     ch_table_to_merge = GATK4_BASERECALIBRATOR.out.table
         .map{ meta, table ->
             // Use sample name and bootstrapping stage as key, ensure num_intervals is available
-            def sample_name = meta.RGSM ?: meta.id.split('_')[0]
+            def sample_name = meta.sample ?: meta.id.split('_')[0]
             def new_id = "${sample_name}" + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + (meta.pass == 2 ? "_second_pass" : "")
             def new_meta = meta + [id: new_id] - meta.subMap('interval_name', 'reference_fasta')
             // Remove interval_name from meta in order to group by sample only

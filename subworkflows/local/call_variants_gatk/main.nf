@@ -69,7 +69,7 @@ workflow CALL_VARIANTS_GATK {
     ch_gvcfs = GATK4_HAPLOTYPECALLER.out.vcf
         .join(GATK4_HAPLOTYPECALLER.out.tbi)
         .map { meta, vcf, tbi ->
-            def key = meta + [ id: meta.interval_name ] - meta.subMap('RGID', 'RGPU', 'RGLB', 'RGSM', 'RGPL', 'single_end', 'num_intervals')
+            def key = meta + [ id: meta.interval_name ] - meta.subMap('RGID', 'RGPU', 'RGLB', 'RGSM', 'RGPL', 'sample', 'single_end', 'num_intervals')
             tuple(key, vcf, tbi)
         }
 
