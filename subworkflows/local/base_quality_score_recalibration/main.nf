@@ -5,9 +5,7 @@
 */
 include { GATK4_ANALYZECOVARIATES                    } from '../../../modules/local/gatk4/analyzecovariates'
 include { GATK4_APPLYBQSR                            } from '../../../modules/nf-core/gatk4/applybqsr'
-include { GATK4_GATHERBQSRREPORTS                    } from '../../../modules/nf-core/gatk4/gatherbqsrreports'
 include { SAMTOOLS_INDEX                             } from '../../../modules/nf-core/samtools/index/main'
-include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_SCATTERED } from '../../../modules/nf-core/samtools/index/main'
 include { SAMTOOLS_MERGE                             } from '../../../modules/nf-core/samtools/merge/main'
 
 include { COMBINE_CRAM_CRAI_INTERVALS                                            } from '../combine_cram_crai_intervals'
