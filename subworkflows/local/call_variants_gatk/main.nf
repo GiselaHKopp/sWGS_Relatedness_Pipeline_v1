@@ -98,13 +98,6 @@ workflow CALL_VARIANTS_GATK {
     GATK4_GENOTYPEGVCFS(ch_gtp_input, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_GENOTYPEGVCFS.out.versions)
 
-    // Run BCFtools stats
-    ch_vcf_tbi = GATK4_GENOTYPEGVCFS.out.vcf.join(GATK4_GENOTYPEGVCFS.out.tbi)
-    .map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
-    BCFTOOLS_STATS(ch_vcf_tbi, [[id: 'no_regions'], []], [[id: 'no_targets'], []], [[id: 'no_samples'], []], [[id: 'no_exons'], []], fasta)
-    multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
-    versions = versions.mix(BCFTOOLS_STATS.out.versions)
-
     // Sort each interval VCF before merging
     ch_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
         .map { meta, vcf ->
@@ -127,6 +120,22 @@ workflow CALL_VARIANTS_GATK {
     // Merge all intervals into one VCF
     GATK4_MERGEVCFS(ch_merge_vcfs, dict)
     versions = versions.mix(GATK4_MERGEVCFS.out.versions)
+
+    // Run BCFtools stats on merged VCF
+    ch_merged_vcf_tbi = GATK4_MERGEVCFS.out.vcf
+        .join(GATK4_MERGEVCFS.out.tbi)
+        .map { meta, vcf, tbi -> tuple(meta, vcf, tbi) }
+
+    BCFTOOLS_STATS(
+        ch_merged_vcf_tbi,
+        [[id: 'no_regions'], []],
+        [[id: 'no_targets'], []],
+        [[id: 'no_samples'], []],
+        [[id: 'no_exons'], []],
+        fasta
+    )
+    multiqc_files = multiqc_files.mix(BCFTOOLS_STATS.out.stats.map { tuple -> tuple[1] })
+    versions = versions.mix(BCFTOOLS_STATS.out.versions)
 
     emit:
     vcf = GATK4_MERGEVCFS.out.vcf
