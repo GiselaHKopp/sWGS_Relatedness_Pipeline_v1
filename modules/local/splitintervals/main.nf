@@ -15,8 +15,24 @@ process SPLIT_INTERVALS {
     path "versions.yml",            emit: versions
 
     script:
+    def pad_width = params.target_number_of_intervals.toString().size()
+
     """
-    awk -vFS="\\t" '{ printf "%s\\t%s\\t%s\\n", \$1, \$2, \$3 > sprintf("%s.bed", \$1) }' ${intervals}
+    # Number of scaffolds
+    S=\$(wc -l < ${intervals})
+
+    # Target number of interval files
+    N=${params.target_number_of_intervals}
+
+    # Ceil(S / N)
+    K=\$(( (S + N - 1) / N ))
+
+    awk -v K=\$K '
+        {
+            file = int((NR - 1) / K) + 1
+            printf "%s\\t%s\\t%s\\n", \$1, \$2, \$3 >> sprintf("interval_%0${pad_width}d.bed", file)
+        }
+    ' ${intervals}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

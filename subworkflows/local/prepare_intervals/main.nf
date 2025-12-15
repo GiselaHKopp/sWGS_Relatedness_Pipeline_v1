@@ -37,9 +37,16 @@ workflow PREPARE_INTERVALS {
             def list = beds instanceof List ? beds : [beds]
             def count = list.size()
             list.collect { bed ->
-                def contig = bed.baseName
-                def fasta_file = meta.id
-                def new_meta = meta + [ id: contig ] + [ interval_name: contig ] + [ reference_fasta: fasta_file ]
+                // Extract numeric index from filename: intervals_001.bed -> 001
+                def idx_str = (bed.baseName =~ /interval_(\d+)/)[0][1]
+                def interval_name = "I${idx_str}"
+
+                def new_meta = meta + [
+                    id              : interval_name,
+                    interval_name   : interval_name,
+                    reference_fasta : meta.id
+                ]
+
                 tuple(new_meta, bed, count)
             }
         }

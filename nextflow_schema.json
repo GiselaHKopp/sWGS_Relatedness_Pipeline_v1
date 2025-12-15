@@ -57,7 +57,7 @@
                     "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
                     "description": "Path to FASTA reference genome file.",
                     "help_text": "Provide the absolute or relative path to the FASTA file used as reference genome. The pipeline will automatically create BWA and FAI indices if they are missing.",
-                    "fa_icon": "far fa-file-code"
+                    "fa_icon": "fas fa-file-code"
                 },
                 "fasta_fai": {
                     "type": "string",
@@ -67,7 +67,7 @@
                     "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?\\.fai$",
                     "description": "Path to FASTA index (.fai) file for the reference genome.",
                     "help_text": "Optional. Provide an existing FAI index file. If omitted, the pipeline will generate one automatically using samtools faidx.",
-                    "fa_icon": "far fa-file-code"
+                    "fa_icon": "fas fa-file-code"
                 },
                 "dict": {
                     "type": "string",
@@ -77,7 +77,7 @@
                     "pattern": "^\\S+\\.dict$",
                     "description": "Path to sequence dictionary (.dict) for the reference genome.",
                     "help_text": "Optional. Provide an existing GATK-style sequence dictionary. If omitted, the pipeline will create it using GATK CreateSequenceDictionary.",
-                    "fa_icon": "far fa-file-alt"
+                    "fa_icon": "fas fa-file-alt"
                 },
                 "bwamem2_index": {
                     "type": "string",
@@ -85,7 +85,15 @@
                     "exists": true,
                     "description": "Path to directory containing the BWA-MEM2 index for the reference genome.",
                     "help_text": "Optional. Provide a directory with pre-built BWA-MEM2 index files (e.g., .0123, .amb, .ann, .bwt.2bit.64, .pac). If omitted, the pipeline will generate the index automatically.",
-                    "fa_icon": "far fa-folder-open"
+                    "fa_icon": "fas fa-folder-open"
+                },
+                "target_number_of_intervals": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "description": "Number of intervals to split the reference genome into for parallel processing.",
+                    "help_text": "Number of intervals to split the reference genome into for parallel processing during alignment and variant calling. Higher numbers can improve performance on large genomes but may increase overhead.",
+                    "fa_icon": "fas fa-hashtag"
                 }
             },
             "required": ["fasta"]
