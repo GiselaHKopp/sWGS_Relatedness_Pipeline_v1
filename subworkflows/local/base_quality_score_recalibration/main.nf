@@ -134,12 +134,14 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
 
     ch_bqsr_first = CRAM_BASERECALIBRATOR.out.table_bqsr
         .map { meta, table ->
-            def new_meta = [id: (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
+            def new_id = (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_meta = meta - meta.subMap('sample', 'RGID', 'RGLB', 'RGID', 'RGPL', 'RGPU', 'RGSM', 'single_end') + [id: new_id] + [ pass: 2 ]
             tuple(new_meta, table)
         }
     ch_bqsr_second = CRAM_BASERECALIBRATOR_SECOND_PASS.out.table_bqsr
         .map { meta, table ->
-            def new_meta = [id: (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")]
+            def new_id = (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "")
+            def new_meta = meta - meta.subMap('sample', 'RGID', 'RGLB', 'RGID', 'RGPL', 'RGPU', 'RGSM', 'single_end') + [id: new_id]
             tuple(new_meta, table)
         }
     ch_bqsr_tables = ch_bqsr_first
