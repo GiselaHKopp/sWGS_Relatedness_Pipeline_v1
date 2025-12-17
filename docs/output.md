@@ -2,18 +2,109 @@
 
 ## Introduction
 
-This document describes the output produced by the pipeline. Most of the plots are taken from the MultiQC report, which summarises results at the end of the pipeline.
+This document describes the output produced by the pipeline. The directories listed below will be created in the results directory after the pipeline has finished. All paths are relative to the top-level results directory.
 
-The directories listed below will be created in the results directory after the pipeline has finished. All paths are relative to the top-level results directory.
-
-<!-- TODO nf-core: Write this documentation describing your workflow's output -->
+```text
+{outdir}
+├── bootstrapping
+│   ├── round_1
+│   │   ├── bqsr
+│   │   |   ├── cram
+|   |   |   |   └── merged
+│   │   |   └── qc
+|   |   ├── stats
+│   │   └── variants
+│   │       ├── db
+│   │       ├── filtered
+│   │       └── merged
+|   |
+│   ├── round_2
+│   │   ├── …
+|   ⋮    ⋮
+|   ⋮
+│   └── round_3
+│       ├── …
+|       ⋮
+|
+├── intervals
+|
+├── multiqc
+|
+├── pipeline_info
+|
+├── preprocessing
+│   ├── alignment
+|   |    ├── bam
+│   |    └── cram
+|   |
+│   ├── coverage
+│   ├── fastp
+│   ├── preseq
+│   └── stats
+|
+├── variant_calling
+│   ├── bcftools
+│   |    └── bam
+|   |
+│   └── gatk
+|        ├── I<interval>_joint
+|        ⋮
+│        └── stats
+|
+└── relatedness_estimation
+    ├── exclude
+    |
+    ├── intersection
+    |
+    ├── thinned
+    |
+    ├── <tool1>
+    |
+    └── <tool2>
+work/
+.nextflow.log
+```
 
 ## Pipeline overview
 
 The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes data using the following steps:
 
-- [MultiQC](#multiqc) - Aggregate report describing results and QC from the whole pipeline
-- [Pipeline information](#pipeline-information) - Report metrics generated during the workflow execution
+- [Preprocessing](#preprocessing)
+  - [Prepare Reference Genome](#prepare-reference-genome)
+  - [Prepare Intervals](#prepare-intervals)
+  - [Prepare Input Files](#prepare-input-files)
+  - [Map to Reference](#map-to-reference)
+  - [Mark Duplicates](#mark-duplicates)
+- [Bootstrapping](#bootstrapping)
+  - [Call Variants](#call-variants)
+  - [Hard Filter Variants](#hard-filter-variants)
+  - [Base Quality Score Recalibration](#base-quality-score-recalibration)
+- [Variant Calling](#variant-calling)
+- [Relatedness Estimation](#relatedness-estimation)
+
+## Preprocessing
+
+### Prepare Reference Genome
+
+### Prepare Intervals
+
+### Prepare Input Files
+
+### Map to Reference
+
+### Mark Duplicates
+
+## Bootstrapping
+
+### Call Variants
+
+### Hard Filter Variants
+
+### Base Quality Score Recalibration
+
+## Variant Calling
+
+## Relatedness Estimation
 
 ### MultiQC
 
