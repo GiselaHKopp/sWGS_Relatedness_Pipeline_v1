@@ -179,8 +179,8 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(FILTER_VARIANTS.out.versions)
     ch_multiqc_files = ch_multiqc_files.mix(FILTER_VARIANTS.out.multiqc_files)
-    ch_vcf = ((!params.skip_filter_variants && !params.bootstrapping_rounds) ? FILTER_VARIANTS.out.vcf : ch_vcf).collect()
-    ch_tbi = ((!params.skip_filter_variants && !params.bootstrapping_rounds) ? FILTER_VARIANTS.out.tbi : ch_tbi).collect()
+    ch_vcf = (params.hard_filter_variants ? FILTER_VARIANTS.out.vcf : ch_vcf).collect()
+    ch_tbi = (params.hard_filter_variants ? FILTER_VARIANTS.out.tbi : ch_tbi).collect()
 
     //
     // SUBWORKFLOW: BASE_QUALITY_SCORE_RECALIBRATION

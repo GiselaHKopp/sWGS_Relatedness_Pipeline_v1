@@ -226,16 +226,16 @@
             ]
         },
         "skip_stages_options": {
-            "title": "Skip stages options",
+            "title": "Stages options",
             "type": "object",
             "fa_icon": "fas fa-forward",
             "description": "Options for pipeline stages to run.",
             "properties": {
-                "skip_filter_variants": {
+                "hard_filter_variants": {
                     "type": "boolean",
-                    "description": "Whether to skip the variant filtering stage.",
-                    "fa_icon": "fas fa-forward",
-                    "help_text": "Disable this option to perform variant filtering using GATK VariantFiltration. This step applies hard filters to the called variants based on quality metrics to remove low-quality variant calls."
+                    "description": "Whether to perform hard filtering of variants.",
+                    "fa_icon": "fas fa-filter",
+                    "help_text": "Enable this option to perform hard filtering of variants using GATK VariantFiltration after variant calling. This step applies a set of predefined filters to the called variants based on quality metrics to remove low-quality variant calls."
                 },
                 "skip_bqsr": {
                     "type": "boolean",

@@ -60,16 +60,6 @@ workflow BOOTSTRAP_VARIANT_SET {
     versions = versions.mix(CALL_VARIANTS_GATK_BOOTSTRAP.out.versions)
     multiqc_files = multiqc_files.mix(CALL_VARIANTS_GATK_BOOTSTRAP.out.multiqc_files)
 
-    vcf_branches = CALL_VARIANTS_GATK_BOOTSTRAP.out.vcf.branch {
-        filter    : !params.skip_filter_variants
-        no_filter :  params.skip_filter_variants
-    }
-
-    tbi_branches = CALL_VARIANTS_GATK_BOOTSTRAP.out.tbi.branch {
-        filter    : !params.skip_filter_variants
-        no_filter :  params.skip_filter_variants
-    }
-
     //
     // SUBWORKFLOW: FILTER_VARIANTS
     //
@@ -77,14 +67,11 @@ workflow BOOTSTRAP_VARIANT_SET {
         fasta,
         fai,
         dict,
-        vcf_branches.filter,
-        tbi_branches.filter
+        CALL_VARIANTS_GATK_BOOTSTRAP.out.vcf,
+        CALL_VARIANTS_GATK_BOOTSTRAP.out.tbi
     )
     versions = versions.mix(FILTER_VARIANTS_BOOTSTRAP.out.versions)
     multiqc_files = multiqc_files.mix(FILTER_VARIANTS_BOOTSTRAP.out.multiqc_files)
-
-    vcf = vcf_branches.no_filter.mix(FILTER_VARIANTS_BOOTSTRAP.out.vcf).collect()
-    tbi = tbi_branches.no_filter.mix(FILTER_VARIANTS_BOOTSTRAP.out.tbi).collect()
 
     //
     // SUBWORKFLOW: BQSR_BOOTSTRAP
@@ -96,8 +83,8 @@ workflow BOOTSTRAP_VARIANT_SET {
         intervals,
         cram,
         crai,
-        vcf,
-        tbi
+        FILTER_VARIANTS_BOOTSTRAP.out.vcf.collect(),
+        FILTER_VARIANTS_BOOTSTRAP.out.tbi.collect()
     )
     versions = versions.mix(BQSR_BOOTSTRAP.out.versions)
     multiqc_files = multiqc_files.mix(BQSR_BOOTSTRAP.out.multiqc_files)
