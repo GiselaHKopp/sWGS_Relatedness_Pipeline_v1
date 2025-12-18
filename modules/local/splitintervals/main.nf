@@ -16,48 +16,46 @@ process SPLIT_INTERVALS {
 
     script:
     def pad_width = params.target_number_of_intervals.toString().size()
-
     """
-    # Number of target bins
     N=${params.target_number_of_intervals}
+    MIN_WINDOW=1000000   # 1 Mb safeguard
 
-    # Sort contigs by length (column 3) descending
-    sort -k3,3nr ${intervals} | \
-    awk -v N=\$N '
+    TOTAL=\$(awk '{ sum += \$3 - \$2 } END { print sum }' ${intervals})
+    TARGET=\$(( TOTAL / N ))
+    WINDOW=\$(( TARGET / 5 ))
+    if [ \$WINDOW -lt \$MIN_WINDOW ]; then WINDOW=\$MIN_WINDOW; fi
+
+    awk -v TARGET=\$TARGET -v WINDOW=\$WINDOW -v N=\$N '
         BEGIN {
-            # initialize bins
-            for (i = 1; i <= N; i++) {
-                sum[i] = 0
-                data[i] = ""
-            }
+            idx = 1
+            chunk = 0
+            fname = sprintf("interval_%0${pad_width}d.bed", idx)
         }
 
         {
-            # find currently lightest bin
-            best = 1
-            for (i = 2; i <= N; i++) {
-                if (sum[i] < sum[best])
-                    best = i
-            }
+            contig = \$1
+            start  = \$2
+            end    = \$3
 
-            # assign contig to that bin
-            data[best] = data[best] sprintf("%s\\t%s\\t%s\\n", \$1, \$2, \$3)
-            sum[best] += \$3
-        }
+            for (pos = start; pos < end; pos += WINDOW) {
+                win_start = pos
+                win_end   = (pos + WINDOW < end) ? pos + WINDOW : end
+                len = win_end - win_start
 
-        END {
-            for (i = 1; i <= N; i++) {
-                if (data[i] != "") {
-                    fname = sprintf("interval_%0${pad_width}d.bed", i)
-                    printf "%s", data[i] > fname
+                if (chunk > 0 && (chunk + len) > TARGET && idx < N) {
+                    idx++
+                    chunk = 0
+                    fname = sprintf("interval_%0${pad_width}d.bed", idx)
                 }
+
+                printf "%s\\t%d\\t%d\\n", contig, win_start, win_end >> fname
+                chunk += len
             }
         }
-    '
+    ' ${intervals}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        sort: \$(sort --version | sed '1!d; s/.* //')
         gawk: \$(awk -Wversion | sed '1!d; s/.*Awk //; s/,.*//')
     END_VERSIONS
     """

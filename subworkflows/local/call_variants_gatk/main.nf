@@ -3,7 +3,6 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { BCFTOOLS_SORT          } from '../../../modules/nf-core/bcftools/sort/main'
 include { BCFTOOLS_STATS         } from '../../../modules/nf-core/bcftools/stats'
 include { GATK4_GENOMICSDBIMPORT } from '../../../modules/nf-core/gatk4/genomicsdbimport'
 include { GATK4_GENOTYPEGVCFS    } from '../../../modules/nf-core/gatk4/genotypegvcfs'
@@ -98,24 +97,25 @@ workflow CALL_VARIANTS_GATK {
     GATK4_GENOTYPEGVCFS(ch_gtp_input, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_GENOTYPEGVCFS.out.versions)
 
-    // Sort each interval VCF before merging
-    ch_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
-        .map { meta, vcf ->
-            def new_meta = meta + [ id: "${meta.id}.sorted" ]
-            tuple(new_meta, vcf)
+    ch_merge_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
+        .toSortedList { a, b ->
+            a[0].interval_idx <=> b[0].interval_idx
         }
+        .map { list ->
+            def metas = list.collect { tuple -> tuple[0] }
+            def vcfs  = list.collect { tuple -> tuple[1] }
 
-    BCFTOOLS_SORT(ch_vcfs)
-    versions = versions.mix(BCFTOOLS_SORT.out.versions)
+            // pick a representative meta (all share these fields)
+            def base_meta = metas[0]
 
-    // Collect sorted VCFs into one tuple for merging
-    ch_merge_vcfs = BCFTOOLS_SORT.out.vcf
-        .map { meta, vcf ->
-            def new_id = "called_variants" + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + ".${meta.variantcaller}"
-            def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name')
-            tuple(new_meta, vcf)
+            def new_meta = base_meta + [
+                id: "called_variants" +
+                    (base_meta.bootstrapping_round ? "_${base_meta.bootstrapping_round}" : "") +
+                    ".${base_meta.variantcaller}"
+            ] - base_meta.subMap('interval_name', 'interval_idx')
+
+            tuple(new_meta, vcfs)
         }
-        .groupTuple()
 
     // Merge all intervals into one VCF
     GATK4_MERGEVCFS(ch_merge_vcfs, dict)

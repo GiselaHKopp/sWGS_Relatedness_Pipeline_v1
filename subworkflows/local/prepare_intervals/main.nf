@@ -39,11 +39,13 @@ workflow PREPARE_INTERVALS {
             list.collect { bed ->
                 // Extract numeric index from filename: intervals_001.bed -> 001
                 def idx_str = (bed.baseName =~ /interval_(\d+)/)[0][1]
+                def idx_int = idx_str as int
                 def interval_name = "I${idx_str}"
 
                 def new_meta = meta + [
                     id              : interval_name,
                     interval_name   : interval_name,
+                    interval_idx    : idx_int,
                     reference_fasta : meta.id
                 ]
 
@@ -53,6 +55,6 @@ workflow PREPARE_INTERVALS {
 
     emit:
     intervals_combined  // [[id:'reference_fasta', reference_fasta: 'reference_fasta']], interval.bed, number_of_intervals]
-    intervals_split     // [[id:'scaffold', interval_name:'scaffold', reference_fasta: 'reference_fasta'], interval.bed, number_of_intervals]
+    intervals_split     // [[id:'interval_name', interval_name:'I001', interval_idx: 001,reference_fasta: 'reference_fasta'], interval.bed, number_of_intervals]
     versions
 }
