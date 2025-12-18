@@ -18,24 +18,26 @@ process SPLIT_INTERVALS {
     def pad_width = params.target_number_of_intervals.toString().size()
 
     """
-    # Number of scaffolds
-    S=\$(wc -l < ${intervals})
-
-    # Target number of interval files
-    N=${params.target_number_of_intervals}
-
-    # Ceil(S / N)
-    K=\$(( (S + N - 1) / N ))
-
-    awk -v K=\$K '
+    # Sort scaffolds by length (column 3) descending
+    sort -k3,3nr ${intervals} | \
+    awk -v N=${params.target_number_of_intervals} '
         {
-            file = int((NR - 1) / K) + 1
-            printf "%s\\t%s\\t%s\\n", \$1, \$2, \$3 >> sprintf("interval_%0${pad_width}d.bed", file)
+            bin = (NR - 1) % N + 1
+            bins[bin] = bins[bin] sprintf("%s\\t%s\\t%s\\n", \$1, \$2, \$3)
         }
-    ' ${intervals}
+        END {
+            for (i = 1; i <= N; i++) {
+                if (bins[i] != "") {
+                    fname = sprintf("interval_%0${pad_width}d.bed", i)
+                    printf "%s", bins[i] > fname
+                }
+            }
+        }
+    '
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
+        sort: \$(sort --version | sed '1!d; s/.* //')
         gawk: \$(awk -Wversion | sed '1!d; s/.*Awk //; s/,.*//')
     END_VERSIONS
     """
