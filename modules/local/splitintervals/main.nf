@@ -18,18 +18,38 @@ process SPLIT_INTERVALS {
     def pad_width = params.target_number_of_intervals.toString().size()
 
     """
-    # Sort scaffolds by length (column 3) descending
+    # Number of target bins
+    N=${params.target_number_of_intervals}
+
+    # Sort contigs by length (column 3) descending
     sort -k3,3nr ${intervals} | \
-    awk -v N=${params.target_number_of_intervals} '
-        {
-            bin = (NR - 1) % N + 1
-            bins[bin] = bins[bin] sprintf("%s\\t%s\\t%s\\n", \$1, \$2, \$3)
+    awk -v N=\$N '
+        BEGIN {
+            # initialize bins
+            for (i = 1; i <= N; i++) {
+                sum[i] = 0
+                data[i] = ""
+            }
         }
+
+        {
+            # find currently lightest bin
+            best = 1
+            for (i = 2; i <= N; i++) {
+                if (sum[i] < sum[best])
+                    best = i
+            }
+
+            # assign contig to that bin
+            data[best] = data[best] sprintf("%s\\t%s\\t%s\\n", \$1, \$2, \$3)
+            sum[best] += \$3
+        }
+
         END {
             for (i = 1; i <= N; i++) {
-                if (bins[i] != "") {
+                if (data[i] != "") {
                     fname = sprintf("interval_%0${pad_width}d.bed", i)
-                    printf "%s", bins[i] > fname
+                    printf "%s", data[i] > fname
                 }
             }
         }
