@@ -87,12 +87,20 @@
                     "help_text": "Optional. Provide a directory with pre-built BWA-MEM2 index files (e.g., .0123, .amb, .ann, .bwt.2bit.64, .pac). If omitted, the pipeline will generate the index automatically.",
                     "fa_icon": "fas fa-folder-open"
                 },
-                "target_number_of_intervals": {
+                "target_number_of_interval_files": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 1000,
-                    "description": "Number of intervals to split the reference genome into for parallel processing.",
-                    "help_text": "Number of intervals to split the reference genome into for parallel processing during alignment and variant calling. Higher numbers can improve performance on large genomes but may increase overhead.",
+                    "description": "Number of interval files to split the reference genome into for parallel processing.",
+                    "help_text": "Number of interval files to split the reference genome into for parallel processing during alignment and variant calling. Higher numbers can improve performance on large genomes but may increase overhead.",
+                    "fa_icon": "fas fa-hashtag"
+                },
+                "max_number_of_intervals_per_file": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "description": "Maximum number of intervals per interval file for parallel processing.",
+                    "help_text": "Maximum number of intervals per interval file for parallel processing during alignment and variant calling. Lower numbers can reduce overhead but may decrease parallelism.",
                     "fa_icon": "fas fa-hashtag"
                 }
             },
