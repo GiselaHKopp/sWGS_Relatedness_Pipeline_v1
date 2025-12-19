@@ -70,7 +70,7 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
     ch_cram_branch = GATK4_APPLYBQSR.out.cram
         .map{ meta, cram_file ->
             def new_id = (meta.sample ?: meta.id.split('_')[0]) + (meta.bootstrapping_round ? "_${meta.bootstrapping_round}" : "") + "_recalibrated"
-            def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name')
+            def new_meta = meta + [ id: new_id ] - meta.subMap('interval_name', 'interval_idx')
             tuple(new_meta, cram_file)
         }
         .groupTuple()

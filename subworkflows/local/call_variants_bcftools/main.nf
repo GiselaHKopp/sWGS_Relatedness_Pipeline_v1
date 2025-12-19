@@ -93,7 +93,7 @@ workflow CALL_VARIANTS_BCFTOOLS {
     vcf_list = BCFTOOLS_CALL.out.vcf
         .map { meta, vcf_file ->
             def new_id = "called_variants" + ".${meta.variantcaller}"
-            def new_meta = meta + [id: new_id] - meta.subMap('interval_name')
+            def new_meta = meta + [id: new_id] - meta.subMap('interval_name', 'interval_idx')
             tuple(new_meta, vcf_file)
         }
         .groupTuple()
@@ -101,7 +101,7 @@ workflow CALL_VARIANTS_BCFTOOLS {
     index_list = BCFTOOLS_CALL.out.tbi
         .map { meta, vcf_file ->
             def new_id = "called_variants" + ".${meta.variantcaller}"
-            def new_meta = meta + [id: new_id] - meta.subMap('interval_name')
+            def new_meta = meta + [id: new_id] - meta.subMap('interval_name', 'interval_idx')
             tuple(new_meta, vcf_file)
         }
         .groupTuple()
