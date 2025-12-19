@@ -3,6 +3,7 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+include { BCFTOOLS_SORT          } from '../../../modules/nf-core/bcftools/sort/main'
 include { BCFTOOLS_STATS         } from '../../../modules/nf-core/bcftools/stats'
 include { GATK4_GENOMICSDBIMPORT } from '../../../modules/nf-core/gatk4/genomicsdbimport'
 include { GATK4_GENOTYPEGVCFS    } from '../../../modules/nf-core/gatk4/genotypegvcfs'
@@ -97,7 +98,18 @@ workflow CALL_VARIANTS_GATK {
     GATK4_GENOTYPEGVCFS(ch_gtp_input, fasta, fai, dict, [[id: 'no_dbsnp'], []], [[id: 'no_dbsnp_tbi'], []])
     versions = versions.mix(GATK4_GENOTYPEGVCFS.out.versions)
 
-    ch_merge_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
+
+    // Sort each interval VCF before merging
+    ch_vcfs = GATK4_GENOTYPEGVCFS.out.vcf
+        .map { meta, vcf ->
+            def new_meta = meta + [ id: "${meta.id}.sorted" ]
+            tuple(new_meta, vcf)
+        }
+
+    BCFTOOLS_SORT(ch_vcfs)
+    versions = versions.mix(BCFTOOLS_SORT.out.versions)
+
+    ch_merge_vcfs = BCFTOOLS_SORT.out.vcf
         .toSortedList { a, b ->
             a[0].interval_idx <=> b[0].interval_idx
         }
@@ -105,7 +117,6 @@ workflow CALL_VARIANTS_GATK {
             def metas = list.collect { tuple -> tuple[0] }
             def vcfs  = list.collect { tuple -> tuple[1] }
 
-            // pick a representative meta (all share these fields)
             def base_meta = metas[0]
 
             def new_meta = base_meta + [
