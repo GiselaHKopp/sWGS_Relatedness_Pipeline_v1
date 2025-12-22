@@ -86,7 +86,6 @@ workflow BASE_QUALITY_SCORE_RECALIBRATION {
         fai,
         [[id: 'no_gzi'],[]]
     )
-    versions = versions.mix(SAMTOOLS_MERGE.out.versions)
 
     // Mix intervals and no_intervals channels together
     ch_recalibrated_cram = SAMTOOLS_MERGE.out.cram.mix(ch_cram_branch.single)

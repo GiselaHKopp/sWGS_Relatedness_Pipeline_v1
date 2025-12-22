@@ -29,7 +29,6 @@ workflow PREPARE_GENOME {
 
     // Build the FASTA index (fai)
     SAMTOOLS_FAIDX(fasta, [[id: 'no_fai'], []], false)
-    versions = versions.mix(SAMTOOLS_FAIDX.out.versions)
 
     emit:
     bwamem2_index   = BWAMEM2_INDEX.out.index.collect()

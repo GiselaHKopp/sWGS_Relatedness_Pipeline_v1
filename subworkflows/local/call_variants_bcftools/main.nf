@@ -72,7 +72,6 @@ workflow CALL_VARIANTS_BCFTOOLS {
     // Run Bcftools mpileup
     keep_bcftools_mpileup = false
     BCFTOOLS_MPILEUP(ch_mpileup_input, fasta, keep_bcftools_mpileup)
-    versions = versions.mix(BCFTOOLS_MPILEUP.out.versions)
 
     ch_call_input = BCFTOOLS_MPILEUP.out.vcf
         .map { meta, vcf_file ->
