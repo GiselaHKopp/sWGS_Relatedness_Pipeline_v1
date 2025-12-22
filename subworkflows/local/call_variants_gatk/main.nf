@@ -110,23 +110,23 @@ workflow CALL_VARIANTS_GATK {
     versions = versions.mix(BCFTOOLS_SORT.out.versions)
 
     ch_merge_vcfs = BCFTOOLS_SORT.out.vcf
-        .toSortedList { a, b ->
-            a[0].interval_idx <=> b[0].interval_idx
-        }
-        .map { list ->
-            def metas = list.collect { tuple -> tuple[0] }
-            def vcfs  = list.collect { tuple -> tuple[1] }
+            .toSortedList { a, b -> a[0].interval_idx <=> b[0].interval_idx }
+            .flatMap { list ->
+                if (!list || list.isEmpty())
+                    return []
 
-            def base_meta = metas[0]
+                def metas = list.collect { tuple -> tuple[0] }
+                def vcfs  = list.collect { tuple -> tuple[1] }
+                def base  = metas[0]
 
-            def new_meta = base_meta + [
-                id: "called_variants" +
-                    (base_meta.bootstrapping_round ? "_${base_meta.bootstrapping_round}" : "") +
-                    ".${base_meta.variantcaller}"
-            ] - base_meta.subMap('interval_name', 'interval_idx')
+                def new_meta = base + [
+                    id: "called_variants" +
+                        (base.bootstrapping_round ? "_${base.bootstrapping_round}" : "") +
+                        ".${base.variantcaller}"
+                ] - base.subMap('interval_name', 'interval_idx')
 
-            tuple(new_meta, vcfs)
-        }
+                return [ tuple(new_meta, vcfs) ]
+            }
 
     // Merge all intervals into one VCF
     GATK4_MERGEVCFS(ch_merge_vcfs, dict)
