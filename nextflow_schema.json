@@ -87,6 +87,14 @@
                     "help_text": "Optional. Provide a directory with pre-built BWA-MEM2 index files (e.g., .0123, .amb, .ann, .bwt.2bit.64, .pac). If omitted, the pipeline will generate the index automatically.",
                     "fa_icon": "fas fa-folder-open"
                 },
+                "intervals": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "Path to directory containing the intervals in bed format.",
+                    "help_text": "Optional. Provide a directory with pre-built interval files (e.g., interval_001.bed, interval_002.bed, …). If omitted, the pipeline will generate intervals automatically.",
+                    "fa_icon": "fas fa-folder-open"
+                },
                 "target_number_of_interval_files": {
                     "type": "integer",
                     "minimum": 1,
@@ -182,19 +190,6 @@
                             "known_variants_tbi": { "type": "null" }
                         },
                         "required": ["bootstrapping_rounds"]
-                    }
-                },
-                {
-                    "if": {
-                        "properties": {
-                            "bootstrapping_rounds": { "type": "null" }
-                        }
-                    },
-                    "then": {
-                        "properties": {
-                            "known_variants_vcf": { "type": "string" }
-                        },
-                        "required": ["known_variants_vcf"]
                     }
                 },
                 {

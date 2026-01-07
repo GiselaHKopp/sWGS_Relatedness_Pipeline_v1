@@ -28,11 +28,27 @@ workflow PREPARE_INTERVALS {
         tuple(meta + [ reference_fasta: meta.id ], intervals, num_intervals)
     }
 
-    // Split intervals into separate files
-    SPLIT_INTERVALS(BUILD_INTERVALS.out.output)
-    versions = versions.mix(SPLIT_INTERVALS.out.versions)
+    intervals_combined_branched = BUILD_INTERVALS.out.output
+        .branch { _tuple ->
+            load_from_file:  params.intervals
+            do_split:       !params.intervals
+        }
 
-    intervals_split = SPLIT_INTERVALS.out.bed
+    if (params.intervals) {
+        // Load intervals from directory
+        split_with_meta = fai
+            .map { meta, _fai ->
+                def beds = file("${params.intervals}/interval_*.bed").sort()
+                tuple(meta, beds)
+            }
+    } else {
+        // Split intervals into separate files
+        SPLIT_INTERVALS(intervals_combined_branched.do_split)
+        versions = versions.mix(SPLIT_INTERVALS.out.versions)
+        split_with_meta = SPLIT_INTERVALS.out.bed
+    }
+
+    intervals_split = split_with_meta
         .flatMap { meta, beds ->
             def list = beds instanceof List ? beds : [beds]
             def count = list.size()
