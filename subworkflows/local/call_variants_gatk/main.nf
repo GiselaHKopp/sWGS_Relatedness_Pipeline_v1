@@ -30,7 +30,7 @@ workflow CALL_VARIANTS_GATK {
     versions = channel.empty()
     multiqc_files = channel.empty()
 
-    // Add variant callerrapping metadata to channels
+    // Add variant caller metadata to channels
     fasta.map { meta, fasta_file ->
         tuple( meta + [variantcaller: 'gatk'], fasta_file ) }
         .set { fasta }

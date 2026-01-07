@@ -28,7 +28,7 @@ workflow CALL_VARIANTS_BCFTOOLS {
     versions = channel.empty()
     multiqc_files = channel.empty()
 
-    // Add variant callerrapping metadata to channels
+    // Add variant caller metadata to channels
     fasta.map { meta, fasta_file ->
         tuple( meta + [variantcaller: 'bcftools'], fasta_file ) }
         .set { fasta }
