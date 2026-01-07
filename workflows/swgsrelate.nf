@@ -147,25 +147,30 @@ workflow SWGSRELATE {
         3: BOOTSTRAP_VARIANT_SET_3.out.tbi
     ]
 
-    ch_cram = params.known_variants_vcf
-        ? ch_cram
-        : cram_channels[ params.bootstrapping_rounds ]
-    ch_crai = params.known_variants_vcf
-        ? ch_crai
-        : crai_channels[ params.bootstrapping_rounds ]
-    ch_vcf  = params.known_variants_vcf
-        ? channel.fromPath(params.known_variants_vcf)
-            .map { it -> tuple([id: 'known_variants'], it) }
-            .collect()
-        : vcf_channels[ params.bootstrapping_rounds ]
+    if (!params.known_variants_vcf && params.bootstrapping_rounds > 0) {
+        ch_cram = cram_channels[ params.bootstrapping_rounds ]
+        ch_crai = crai_channels[ params.bootstrapping_rounds ]
+    }
 
-    ch_tbi = params.known_variants_vcf
-        ? (params.known_variants_tbi
-            ? channel.fromPath(params.known_variants_tbi)
-                .map { tbi -> [ [id: 'known_variants'], tbi ] }
-                .collect()
-            : BCFTOOLS_INDEX(ch_vcf).tbi.collect())
-        : tbi_channels[ params.bootstrapping_rounds ]
+    if (params.known_variants_vcf) {
+        ch_vcf = channel.fromPath(params.known_variants_vcf)
+                    .map { it -> tuple([id: 'known_variants'], it) }
+                    .collect()
+    } else if (params.bootstrapping_rounds > 0) {
+        ch_vcf = vcf_channels[ params.bootstrapping_rounds ]
+    } else {
+        ch_vcf = channel.empty()
+    }
+
+    if (params.known_variants_tbi) {
+        ch_tbi = channel.fromPath(params.known_variants_tbi)
+                    .map { tbi -> [ [id: 'known_variants'], tbi ] }
+                    .collect()
+    } else if (params.bootstrapping_rounds > 0) {
+        ch_tbi = tbi_channels[ params.bootstrapping_rounds ]
+    } else {
+        ch_tbi = BCFTOOLS_INDEX(ch_vcf).tbi.collect()
+    }
 
     //
     // SUBWORKFLOW: FILTER_VARIANTS
