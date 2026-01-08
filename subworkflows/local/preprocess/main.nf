@@ -88,7 +88,6 @@ workflow PREPROCESS {
     // Coverage calculation with mosdepth
     ch_mosdepth_input = ch_cram.join(ch_crai).map { meta, cram, crai -> tuple(meta, cram, crai, []) }
     MOSDEPTH(ch_mosdepth_input, fasta)
-    versions = versions.mix(MOSDEPTH.out.versions)
     multiqc_files = multiqc_files.mix(MOSDEPTH.out.global_txt.map { _meta, file -> file }).mix(MOSDEPTH.out.summary_txt.map { _meta, file -> file })
 
     emit:
