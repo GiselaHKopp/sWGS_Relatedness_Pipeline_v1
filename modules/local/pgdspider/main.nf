@@ -24,11 +24,11 @@ process PGDSPIDER {
     def file_ending = args.contains("-outputformat EIGENSOFT") ? "eigenstrat" : ""
 
     """
-    PGDSpider2-cli \
-    -inputfile ${vcf} \
-    -inputformat VCF \
-    -outputfile ${meta.id}.${file_ending} \
-    ${args}
+    PGDSpider2-cli \\
+    -inputfile ${vcf} \\
+    -inputformat VCF \\
+    -outputfile ${meta.id}.${file_ending} \\
+    ${args} \\
     -spid ${workflow.projectDir}/assets/pgdspider_vcf_to_eigenstrat.spid
 
     cat <<-END_VERSIONS > versions.yml
