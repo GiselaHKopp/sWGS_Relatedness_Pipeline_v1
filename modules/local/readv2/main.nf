@@ -1,6 +1,6 @@
 process READv2 {
     tag "$meta.id"
-    label 'process_small'
+    label 'process_low'
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
