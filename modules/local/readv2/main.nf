@@ -22,7 +22,7 @@ process READv2 {
     def args   = task.ext.args ?: ''
     //def prefix = task.ext.prefix ?: "${meta.id}"
     def prefix = bed.getName() - ".bed"
-    println "prefix   = ${prefix}"
+
     """
     kinship-read \\
         -i ${prefix} \\
@@ -30,7 +30,7 @@ process READv2 {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        READv2: \$(READ2 --version 2>&1 | head -n1 | sed 's/^.*READv2 //; s/ .*\$//')
+        READv2: \$(kinship-read --version 2>&1 | sed 's/^v//')
     END_VERSIONS
     """
 }

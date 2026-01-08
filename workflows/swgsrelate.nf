@@ -245,13 +245,11 @@ workflow SWGSRELATE {
     )
     ch_versions = ch_versions.mix(VCF_INTERSECTION_THINNING.out.versions)
 
-
     //
     // SUBWORKFLOW: RELATEDNESS_BREADR
     //
     RELATEDNESS_BREADR(VCF_INTERSECTION_THINNING.out.intersection)
     ch_versions = ch_versions.mix(RELATEDNESS_BREADR.out.versions)
-
 
     //
     // SUBWORKFLOW: RELATEDNESS_READ
@@ -259,13 +257,11 @@ workflow SWGSRELATE {
     RELATEDNESS_READ(VCF_INTERSECTION_THINNING.out.intersection)
     ch_versions = ch_versions.mix(RELATEDNESS_READ.out.versions)
 
-
     //
     // MODULE: ANGSD_NGSRELATE
     //
     ANGSD_NGSRELATE(VCF_INTERSECTION_THINNING.out.intersection)
     ch_versions = ch_versions.mix(ANGSD_NGSRELATE.out.versions)
-
 
     //
     // Collate and save software versions
