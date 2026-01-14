@@ -100,29 +100,21 @@ workflow PIPELINE_INITIALISATION {
         .map {
             meta, fastq_1, fastq_2, spring_1, spring_2, bam, cram ->
                 if (fastq_1 && !fastq_2) {
-                    return [ meta.id, meta + [ single_end:true ], [ fastq_1 ] ]
+                    return [ meta + [ single_end:true ], [ fastq_1 ] ]
                 } else if (fastq_1 && fastq_2)
                 {
-                    return [ meta.id, meta + [ single_end:false ], [ fastq_1, fastq_2 ] ]
+                    return [ meta + [ single_end:false ], [ fastq_1, fastq_2 ] ]
                 } else if (spring_1 && !spring_2) {
-                    return [ meta.id, meta + [ single_end:true ], [ spring_1 ] ]
+                    return [ meta + [ single_end:true ], [ spring_1 ] ]
                 } else if (spring_1 && spring_2)
                 {
-                    return [ meta.id, meta + [ single_end:false ], [ spring_1, spring_2 ] ]
+                    return [ meta + [ single_end:false ], [ spring_1, spring_2 ] ]
                 } else if (bam) {
-                    return [ meta.id, meta, [ bam ] ]
+                    return [ meta, [ bam ] ]
                 }
                 else if (cram) {
-                    return [ meta.id, meta, [ cram ] ]
+                    return [ meta, [ cram ] ]
                 }
-        }
-        .groupTuple()
-        .map { samplesheet ->
-            validateInputSamplesheet(samplesheet)
-        }
-        .map {
-            meta, fastqs ->
-                return [ meta, fastqs.flatten() ]
         }
         .set { ch_samplesheet }
 

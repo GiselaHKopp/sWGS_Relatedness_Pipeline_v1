@@ -11,6 +11,7 @@ include { MOSDEPTH                       } from '../../../modules/nf-core/mosdep
 include { PRESEQ_CCURVE                  } from '../../../modules/nf-core/preseq/ccurve'
 include { PRESEQ_LCEXTRAP                } from '../../../modules/nf-core/preseq/lcextrap'
 include { SAMTOOLS_INDEX                 } from '../../../modules/nf-core/samtools/index'
+include { SAMTOOLS_MERGE                 } from '../../../modules/nf-core/samtools/merge/main'
 include { SAMTOOLS_STATS                 } from '../../../modules/nf-core/samtools/stats'
 include { SPRING_DECOMPRESS              } from '../../../modules/nf-core/spring/decompress'
 
@@ -44,7 +45,6 @@ workflow PREPROCESS {
 
     // Merge with normal FASTQs into one unified channel
     merged_fastqs = ch_input_branches.fastq.mix(SPRING_DECOMPRESS.out.fastq)
-
     // Trim and QC with FASTP
     ch_fastp_input = merged_fastqs.map { meta, reads -> tuple(meta, reads, []) }
     FASTP(ch_fastp_input, false, false, false)
@@ -61,8 +61,32 @@ workflow PREPROCESS {
     GATK4_ADDORREPLACEREADGROUPS(bam, fasta, fai)
     versions = versions.mix(GATK4_ADDORREPLACEREADGROUPS.out.versions)
 
+    ch_bam_rg_added = GATK4_ADDORREPLACEREADGROUPS.out.bam
+                        .map { meta, bam_file -> tuple(meta.RGSM, meta, bam_file) }
+                        .groupTuple()
+                        .map { _rgsm, metas, bams ->
+                            // Take the first meta and remove RGPU
+                            def meta = metas[0]
+                            def merged_meta = meta - meta.subMap('RGPU') + [id: meta.RGSM + '_merged']
+                            [merged_meta, bams]
+                        }
+
+    // Merge BAMs per-sample
+    SAMTOOLS_MERGE(
+        ch_bam_rg_added,
+        fasta,
+        fai,
+        [[id: 'no_gzi'],[]]
+    )
+
+    merged_bam = SAMTOOLS_MERGE.out.bam
+                .map { meta, bam_file ->
+                    def new_meta = meta + [ id: meta.RGSM ]
+                    tuple(new_meta, bam_file)
+                }
+
     // Mark duplicates
-    GATK4_MARKDUPLICATES(GATK4_ADDORREPLACEREADGROUPS.out.bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
+    GATK4_MARKDUPLICATES(merged_bam, fasta.map { tuple -> tuple[1] }, fai.map{ tuple -> tuple[1] })
     versions = versions.mix(GATK4_MARKDUPLICATES.out.versions)
     multiqc_files = multiqc_files.mix(GATK4_MARKDUPLICATES.out.metrics.map { tuple -> tuple[1] })
     ch_cram = GATK4_MARKDUPLICATES.out.cram.mix(ch_input_branches.cram)
