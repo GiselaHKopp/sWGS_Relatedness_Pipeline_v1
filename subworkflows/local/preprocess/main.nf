@@ -49,7 +49,8 @@ workflow PREPROCESS {
     ch_fastp_input = merged_fastqs.map { meta, reads -> tuple(meta, reads, []) }
     FASTP(ch_fastp_input, false, false, false)
     versions = versions.mix(FASTP.out.versions)
-    multiqc_files = FASTP.out.html.map { _meta, file -> file }.mix(FASTP.out.json.map { _meta, file -> file })
+    multiqc_files = multiqc_files.mix(FASTP.out.json.collect{ _meta, json -> json })
+    multiqc_files = multiqc_files.mix(FASTP.out.html.collect{ _meta, html -> html })
 
     // Map to reference
     BWAMEM2_MEM(FASTP.out.reads, bwamem2, fasta, true)
