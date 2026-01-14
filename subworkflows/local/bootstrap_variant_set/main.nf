@@ -89,7 +89,6 @@ workflow BOOTSTRAP_VARIANT_SET {
     versions = versions.mix(BQSR_BOOTSTRAP.out.versions)
     multiqc_files = multiqc_files.mix(BQSR_BOOTSTRAP.out.multiqc_files)
 
-
     // Remove bootstrapping metadata from CRAM channel
     BQSR_BOOTSTRAP.out.recalibrated_cram.map { meta, cram_file ->
         tuple( meta - meta.subMap('bootstrapping_round'), cram_file ) }
